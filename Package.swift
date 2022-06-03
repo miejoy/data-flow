@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "DataFlow",
+    name: "data-flow",
     platforms: [
         .macOS(.v10_15),
         .iOS(.v13),

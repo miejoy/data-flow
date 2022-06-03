@@ -3,6 +3,5 @@ import XCTest
 import DataFlowTests
 
 var tests = [XCTestCaseEntry]()
-tests += StoreTests.allTests()
-tests += SharedStateTests.allTests()
+tests += DataFlowTests.allTests()
 XCTMain(tests)

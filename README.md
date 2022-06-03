@@ -4,6 +4,11 @@ DataFlow 定义了 App 中数据应该如何存储、传递和处理。该模块
 
 DataFlow 是自定义 RSV(Resource & State & View) 设计模式中 State 层的基础模块，负责给 View 提供数据支持和交互支持，并结合 Resource 层加载各种资源，包括设备资源、网络资源等
 
+[![CI Status](https://app.travis-ci.com/miejoy/data-flow.svg?branch=main)](https://app.travis-ci.com/github/miejoy/data-flow)
+[![codecov](https://codecov.io/gh/miejoy/data-flow/branch/main/graph/badge.svg)](https://codecov.io/gh/miejoy/data-flow)
+[![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
+[![Swift](https://img.shields.io/badge/swift-5.2-brightgreen.svg)](https://swift.org)
+
 ## Requirements
 
 - iOS 13.0+ / Mac OS X 10.15+
@@ -15,9 +20,9 @@ DataFlow 是自定义 RSV(Resource & State & View) 设计模式中 State 层的�
 该模块包含几个概念需要提前了解一下：
 - State: 需要存储的状态，值类型，可以包含各种可存储数据
 - Store: 存储器，引用类型。用于保存状态，提供给界面绑定并分发和处理界面事件
-- Action: 事件，一般用枚举。具有唯一性和可处理行
+- Action: 事件，一般用枚举。具有唯一性和可处理性
 
-当前的 State 是以协议的方式定一个的，包含如下几个协议：
+当前的 State 是以协议的方式定义的，包含如下几个协议：
 基础协议:
 - StateStorable: 可存储的状态，这也是最基础的状态协议
 - StateInitable: 可直接初始化的状态

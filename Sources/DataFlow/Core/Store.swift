@@ -436,7 +436,7 @@ extension Store where State : StateReducerLoadable {
 /// 可直接初始化的状态
 extension Store where State : StateInitable {
     /// 可直接初始化的状态，对于存储器也可以直接初始化
-    convenience init() {
+    public convenience init() {
         self.init(state: State())
     }
 }

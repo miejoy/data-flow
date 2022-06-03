@@ -3,6 +3,7 @@
 //  
 //
 //  Created by 黄磊 on 2022/5/31.
+//  Copyright © 2022 Miejoy. All rights reserved.
 //  主要用于对 Store 这种状态处理的观察，外部可以通过添加观察者记录数据流中的各种动向
 
 import Foundation
@@ -29,7 +30,7 @@ public final class StoreMonitor {
         
     struct Observer {
         let observerId: Int
-        weak var delegate: StoreMonitorOberver?
+        weak var observer: StoreMonitorOberver?
     }
     
     /// 监听器共享单例
@@ -50,7 +51,7 @@ public final class StoreMonitor {
     public func addObserver(_ observer: StoreMonitorOberver) -> AnyCancellable {
         generateObserverId += 1
         let observerId = generateObserverId
-        arrObservers.append(.init(observerId: generateObserverId, delegate: observer))
+        arrObservers.append(.init(observerId: generateObserverId, observer: observer))
         return AnyCancellable { [weak self] in
             if let index = self?.arrObservers.firstIndex(where: { $0.observerId == observerId}) {
                 self?.arrObservers.remove(at: index)
@@ -61,6 +62,6 @@ public final class StoreMonitor {
     /// 记录对应事件，这里只负责将所有事件传递给观察者
     func record<State:StateStorable>(event: StoreEvent<State>) {
         guard !arrObservers.isEmpty else { return }
-        arrObservers.forEach { $0.delegate?.receiveStoreEvent(event) }
+        arrObservers.forEach { $0.observer?.receiveStoreEvent(event) }
     }
 }
