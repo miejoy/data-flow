@@ -27,14 +27,14 @@ DataFlow 是自定义 RSV(Resource & State & View) 设计模式中 State 层的�
 
 当前的 State 是以协议的方式定义的，包含如下几个协议:
 
-- 基础协议:
+- 基础协议
   - StateStorable: 可存储的状态，这也是最基础的状态协议
   - StateInitable: 可直接初始化的状态
   - StateContainable: 可容纳子状态的状态
   - StateAttachable: 可附加于其他状态的状态
   - StateReducerLoadable: 可自动加载处理器的状态
 
-- 扩张协议:
+- 扩张协议
   - StateSharable: 可共享的状态
   - StateFullSharable: 完整的可共享状态
 
@@ -83,6 +83,7 @@ struct NormalView: View {
 ### StateSharable 共享状态使用
 
 可共享状态可以在所有界面共享使用
+
 1、定义一个可共享状态
 
 ```swift
