@@ -6,7 +6,7 @@ DataFlow defines how to store, pass and handle data in App. It also defines seve
 
 DtatFlow is in the **State** layer of a custom RSV(Resource & State & View) pattern design. It provides data support and interactive support for **View**. It also works with **Resource** layer to load resources, including device resources, network resources, etc.
 
-[![CI Status](https://app.travis-ci.com/miejoy/data-flow.svg?branch=main)](https://app.travis-ci.com/github/miejoy/data-flow)
+[![Swift](https://github.com/miejoy/data-flow/actions/workflows/test.yml/badge.svg)](https://github.com/miejoy/data-flow/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/miejoy/data-flow/branch/main/graph/badge.svg)](https://codecov.io/gh/miejoy/data-flow)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
 [![Swift](https://img.shields.io/badge/swift-5.2-brightgreen.svg)](https://swift.org)
@@ -24,7 +24,7 @@ There are several concepts need to understand first:
 - State: value type, can be all kinds of storable data
 - Store: reference type, holds all the states, provides state to bind view, handles and dispatchs actions
 - Action: event, usually an enumeration. it must be unique and handlable
-  
+
 State is actually a set of protocols:
 
 - Basic Protocols
@@ -33,10 +33,10 @@ State is actually a set of protocols:
   - StateContainable: states that can have substate
   - StateAttachable: states that can be attached to other states
   - StateReducerLoadable: states that can load reducer automatically
-  
+
 - Extra Protocols
   - StateSharable: states that are sharable
-  - StateFullSharable: state that are fully sharable  
+  - StateFullSharable: state that are fully sharable
 
 ## Installation
 
@@ -71,9 +71,9 @@ dependencies: [
     import SwiftUI
 
     struct NormalView: View {
-        
+
         @ObservedObject var normalStore = Store<NormalState>.box(NormalState())
-        
+
         var body: some View {
             Text(normalStore.name)
         }
@@ -91,7 +91,7 @@ StateSharable can be used cross all views
 
     struct NormalSharedState : StateSharable {
         typealias UpState = AppState
-        
+
         var name: String = ""
     }
     ```
@@ -103,9 +103,9 @@ StateSharable can be used cross all views
     import SwiftUI
 
     struct NormalSharedView: View {
-        
+
         @SharedState var normalState: NormalSharedState
-        
+
         var body: some View {
             Text(normalState.name)
         }
@@ -157,9 +157,9 @@ StateSharable can be used cross all views
     import SwiftUI
 
     struct NormalSharedView: View {
-        
+
         @SharedState var normalState: NormalSharedState;
-        
+
         var body: some View {
             VStack {
                 Text(normalState.name)

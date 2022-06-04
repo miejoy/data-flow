@@ -6,7 +6,7 @@ DataFlow 定义了 App 中数据应该如何存储、传递和处理。该模块
 
 DataFlow 是自定义 RSV(Resource & State & View) 设计模式中 State 层的基础模块，负责给 View 提供数据支持和交互支持，并结合 Resource 层加载各种资源，包括设备资源、网络资源等
 
-[![CI Status](https://app.travis-ci.com/miejoy/data-flow.svg?branch=main)](https://app.travis-ci.com/github/miejoy/data-flow)
+[![Swift](https://github.com/miejoy/data-flow/actions/workflows/test.yml/badge.svg)](https://github.com/miejoy/data-flow/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/miejoy/data-flow/branch/main/graph/badge.svg)](https://codecov.io/gh/miejoy/data-flow)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
 [![Swift](https://img.shields.io/badge/swift-5.2-brightgreen.svg)](https://swift.org)
