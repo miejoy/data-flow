@@ -1,5 +1,7 @@
 # DataFlow
 
+> [中文版](README.md)
+
 DataFlow defines how to store, pass and handle data in App. It also defines several base types and protocols which are easy to use and can make data flow in App build quickly and clearly. The State defined in this module can be used in SwiftUI smoothly and update UI automatically when data changed.
 
 DtatFlow is in the **State** layer of a custom RSV(Resource & State & View) pattern design. It provides data support and interactive support for **View**. It also works with **Resource** layer to load resources, including device resources, network resources, etc.
