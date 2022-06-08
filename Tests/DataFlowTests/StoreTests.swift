@@ -70,7 +70,7 @@ class StoreTests: XCTestCase {
     }
     
     func testStateInitReducerLoadable() {
-        _ = Store<InitReducerState>.box(.init())
+        _ = Store<InitReducerState>()
         XCTAssert(initReducerStateIsLoad)
     }
     
@@ -290,13 +290,11 @@ class StoreTests: XCTestCase {
         XCTAssertEqual(secondStore.mapValueObservers.count, 0)
         XCTAssertNil(secondStore.mapValueObservers[\NormalState.name])
         
-        firstStore!.observe(store: secondStore) { new, old in
-        }
+        firstStore!.observe(store: secondStore) { new, old in }
         XCTAssertEqual(secondStore.arrObservers.count, 1)
         XCTAssertEqual(secondStore.generateObserverId, 1)
         
-        firstStore!.observe(store: secondStore, of: \.name) { new, old in
-        }
+        firstStore!.observe(store: secondStore, of: \.name) { new, old in }
         XCTAssertEqual(secondStore.mapValueObservers.count, 1)
         XCTAssertEqual(secondStore.mapValueObservers[\NormalState.name]?.count, 1)
         XCTAssertEqual(secondStore.generateObserverId, 2)
@@ -362,9 +360,7 @@ class StoreTests: XCTestCase {
         let normalStore: Store<NormalState> = Store<NormalState>()
         var reduceCall = false
         var observerCall = false
-        let cancellable = normalStore.addObserver(of: \.name) { new, old in
-            observerCall = true
-        }
+        let cancellable = normalStore.addObserver(of: \.name) { _, _ in observerCall = true }
         normalStore.register { (state, action: AnyAction) in
             reduceCall = true
         }
@@ -472,6 +468,19 @@ class StoreTests: XCTestCase {
         XCTAssert(!destroyCallbackCall)
         normalStore = nil
         XCTAssert(destroyCallbackCall)
+    }
+    
+    func testUpStoreRemoveSubStateWhenSubStoreDestroy() {
+        let upStore : Store<ContainState> = .init(state: ContainState())
+        var subStore : Store<ContainSubState>? = .init(state: ContainSubState())
+        
+        upStore.append(subStore: subStore!)
+        
+        let subStateId = subStore!.state.stateId
+        XCTAssertNotNil(upStore.state.subStates[subStateId])
+        
+        subStore = nil
+        XCTAssertNil(upStore.state.subStates[subStateId])
     }
 }
 

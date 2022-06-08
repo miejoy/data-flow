@@ -34,7 +34,7 @@ DataFlow 是自定义 RSV(Resource & State & View) 设计模式中 State 层的�
   - StateAttachable: 可附加于其他状态的状态
   - StateReducerLoadable: 可自动加载处理器的状态
 
-- 扩张协议
+- 扩展协议
   - StateSharable: 可共享的状态
   - StateFullSharable: 完整的可共享状态
 

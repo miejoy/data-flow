@@ -51,6 +51,7 @@ class SharedStateTests: XCTestCase {
         XCTAssertEqual(view.normalState.name, "")
         XCTAssertEqual(Store<NormalSharedState>.shared.name, "")
         
+        _ = view.body
         let content = "content"
         view.normalState.name = content
         XCTAssertEqual(view.normalState.name, content)
@@ -63,6 +64,7 @@ class SharedStateTests: XCTestCase {
         XCTAssertEqual(view.testState.content, "")
         XCTAssertEqual(Store<TestState>.shared.content, "")
         
+        _ = view.body
         let content = "content"
         view.$testState.send(action: .changeContent(content))
         XCTAssertEqual(view.testState.content, content)

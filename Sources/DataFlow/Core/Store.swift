@@ -412,6 +412,10 @@ extension Store where State : StateContainable {
         self.observe(store: subStore) { [weak self] new, _ in
             self?.state.updateSubState(state: new)
         }
+        // 子 store 销毁时，需要清空上级 store 保存的状态
+        subStore.setDestroyCallback { [weak self] state in
+            self?.state.subStates.removeValue(forKey: state.stateId)
+        }
     }
 }
 
