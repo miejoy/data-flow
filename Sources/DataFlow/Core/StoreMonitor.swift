@@ -18,6 +18,7 @@ public enum StoreEvent<State: StateStorable> {
     case didUpdateStateOn(Store<State>, oldState: State)
     case cyclicObserve(from: Store<State>, to: AnyStore)
     case destoryStore(Store<State>)
+    case fatalError(String)
 }
 
 /// 存储器变化观察者
@@ -41,8 +42,6 @@ public final class StoreMonitor {
     var generateObserverId: Int = 0
     /// 是否使用严格模式，即所有 state 更新必须通过 send、applay、dispach 方法
     var useStrictMode: Bool = false
-    /// 是否可以直接抛 fatalError
-    var canThrowFatalError = true
     
     required init() {
     }
@@ -60,8 +59,22 @@ public final class StoreMonitor {
     }
     
     /// 记录对应事件，这里只负责将所有事件传递给观察者
+    @usableFromInline
     func record<State:StateStorable>(event: StoreEvent<State>) {
         guard !arrObservers.isEmpty else { return }
+        arrObservers.forEach { $0.observer?.receiveStoreEvent(event) }
+    }
+    
+    @usableFromInline
+    func fatalError(_ message: String) {
+        guard !arrObservers.isEmpty else {
+            #if DEBUG
+            Swift.fatalError(message)
+            #else
+            return
+            #endif
+        }
+        let event = StoreEvent<Never>.fatalError(message)
         arrObservers.forEach { $0.observer?.receiveStoreEvent(event) }
     }
 }

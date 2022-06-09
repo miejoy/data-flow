@@ -70,9 +70,11 @@ extension Store where State : StateSharable {
         if !(State.UpState.self is Never.Type) {
             let upStore = Store<State.UpState>.shared
             if let existState = upStore.subStates[store.state.stateId] {
-                fatalError("Attach State[\(String(describing: State.self))] to UpState[\(String(describing: State.UpState.self))] " +
-                           "with stateId[\(store.state.stateId)] failed: " +
-                           "exist State[\(String(describing: type(of: existState)))] with same stateId!")
+                StoreMonitor.shared.fatalError(
+                    "Attach State[\(String(describing: State.self))] to UpState[\(String(describing: State.UpState.self))] " +
+                    "with stateId[\(store.state.stateId)] failed: " +
+                    "exist State[\(String(describing: type(of: existState)))] with same stateId!"
+                )
             }
             upStore.append(subStore: store)
         }

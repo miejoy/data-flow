@@ -378,6 +378,7 @@ class StoreTests: XCTestCase {
     
     func testCyclicObserve() {
         
+        StoreMonitor.shared.arrObservers = []
         class Oberver: StoreMonitorOberver {
             var cyclicObserveCall = false
             func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StateStorable {
@@ -386,7 +387,6 @@ class StoreTests: XCTestCase {
                 }
             }
         }
-        StoreMonitor.shared.canThrowFatalError = false
         let oberver = Oberver()
         let cancellable = StoreMonitor.shared.addObserver(oberver)
         
@@ -406,6 +406,7 @@ class StoreTests: XCTestCase {
     
     func testCyclicObserveIndirect() {
         
+        StoreMonitor.shared.arrObservers = []
         class Oberver: StoreMonitorOberver {
             var cyclicObserveCall = false
             func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StateStorable {
@@ -414,7 +415,6 @@ class StoreTests: XCTestCase {
                 }
             }
         }
-        StoreMonitor.shared.canThrowFatalError = false
         let oberver = Oberver()
         let cancellable = StoreMonitor.shared.addObserver(oberver)
         
@@ -458,6 +458,25 @@ class StoreTests: XCTestCase {
         cancellable.cancel()
     }
     
+    func testMuiltValueObserve() {
+        StoreMonitor.shared.arrObservers = []
+        
+        let topStore = Store<NormalState>()
+        let middleStore = Store<ContainState>.box(ContainState())
+        var bottomStore: Store<ContainSubState>? = Store<ContainSubState>.box(ContainSubState())
+        
+        XCTAssertEqual(topStore.mapValueObservers[\NormalState.name]?.count ?? 0, 0)
+        
+        middleStore.observe(store: topStore, of: \.name) { new, old in }
+        XCTAssertEqual(topStore.mapValueObservers[\NormalState.name]?.count ?? 0, 1)
+        
+        bottomStore!.observe(store: topStore, of: \.name) { new, old in }
+        XCTAssertEqual(topStore.mapValueObservers[\NormalState.name]?.count ?? 0, 2)
+        
+        bottomStore = nil
+        XCTAssertEqual(topStore.mapValueObservers[\NormalState.name]?.count ?? 0, 1)
+    }
+    
     func testStoreDestroyCallback() {
         var normalStore : Store<NormalState>? = .init()
         var destroyCallbackCall = false
@@ -481,6 +500,56 @@ class StoreTests: XCTestCase {
         
         subStore = nil
         XCTAssertNil(upStore.state.subStates[subStateId])
+    }
+    
+    func testStrictMode() {
+        StoreMonitor.shared.arrObservers = []
+        StoreMonitor.shared.useStrictMode = true
+        defer { StoreMonitor.shared.useStrictMode = false }
+        class Oberver: StoreMonitorOberver {
+            var strictModeFatalErrorCall = false
+            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StateStorable {
+                if case .fatalError(let message) = event,
+                    message == "Never update state directly! Use send/dispatch action instead" {
+                    strictModeFatalErrorCall = true
+                }
+            }
+        }
+        let oberver = Oberver()
+        let cancellable = StoreMonitor.shared.addObserver(oberver)
+        
+        let normalStore = Store<NormalState>()
+        
+        XCTAssert(!oberver.strictModeFatalErrorCall)
+        normalStore.state.name = ""
+        XCTAssert(oberver.strictModeFatalErrorCall)
+        
+        oberver.strictModeFatalErrorCall = false
+        normalStore.name = ""
+        XCTAssert(oberver.strictModeFatalErrorCall)
+       
+        cancellable.cancel()
+    }
+    
+    func testOptionalStateValue() {
+        let optionalStore = Store<OptionalState>()
+        var optionalValueChange = false
+        let cancellable = optionalStore.addObserver(of: \.name) { new, old in
+            optionalValueChange = true
+        }
+        
+        XCTAssert(!optionalValueChange)
+        optionalStore.name = ""
+        XCTAssert(optionalValueChange)
+        
+        optionalValueChange = false
+        optionalStore.name = ""
+        XCTAssert(!optionalValueChange)
+        
+        optionalStore.name = nil
+        XCTAssert(optionalValueChange)
+        
+        cancellable.cancel()
     }
 }
 
@@ -527,6 +596,9 @@ struct ObserveState: StateStorable, StateInitable {
     var otherValue: String = ""
 }
 
+struct OptionalState: StateStorable, StateInitable {
+    var name: String? = nil
+}
 
 enum AnyAction : Action {
     case any

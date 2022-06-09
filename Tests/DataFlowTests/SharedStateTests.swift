@@ -70,6 +70,32 @@ class SharedStateTests: XCTestCase {
         XCTAssertEqual(view.testState.content, content)
         XCTAssertEqual(Store<TestState>.shared.content, content)
     }
+    
+    func testDuplicateSharedState() {
+        
+        StoreMonitor.shared.arrObservers = []
+        class Oberver: StoreMonitorOberver {
+            var duplicateFatalErrorCall = false
+            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StateStorable {
+                if case .fatalError(let message) = event,
+                    message == ("Attach State[DuplicateSharedState] to UpState[AppState] " +
+                                "with stateId[NormalSharedState] failed: " +
+                                "exist State[NormalSharedState] with same stateId!") {
+                    duplicateFatalErrorCall = true
+                }
+            }
+        }
+        let oberver = Oberver()
+        let cancellable = StoreMonitor.shared.addObserver(oberver)
+        
+        _ = Store<NormalSharedState>.shared
+        XCTAssert(!oberver.duplicateFatalErrorCall)
+        
+        _ = Store<DuplicateSharedState>.shared
+        XCTAssert(oberver.duplicateFatalErrorCall)
+        
+        cancellable.cancel()
+    }
 }
 
 struct SharedStateTestView: View {
@@ -142,4 +168,11 @@ struct SharedReducerState : StateSharable, StateReducerLoadable {
     static func loadReducers(on store: Store<SharedReducerState>) {
         sharedReducerStateIsLoad = true
     }
+}
+
+struct DuplicateSharedState : StateSharable {
+    typealias UpState = AppState
+    var name: String = ""
+    
+    var stateId: String = "NormalSharedState"
 }

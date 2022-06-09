@@ -55,11 +55,9 @@ public final class Store<State: StateStorable>: ObservableObject {
             _state
         }
         set {
-            #if DEBUG
-            if StoreMonitor.shared.useStrictMode && StoreMonitor.shared.canThrowFatalError {
-                fatalError("Never update state directly! Use send/dispatch action instead")
+            if StoreMonitor.shared.useStrictMode {
+                StoreMonitor.shared.fatalError("Never update state directly! Use send/dispatch action instead")
             }
-            #endif
             updateStateWithNotice(newValue)
         }
     }
@@ -102,11 +100,9 @@ public final class Store<State: StateStorable>: ObservableObject {
             return _state[keyPath: keyPath]
         }
         set {
-            #if DEBUG
-            if StoreMonitor.shared.useStrictMode && StoreMonitor.shared.canThrowFatalError {
-                fatalError("Never update state directly! Use send/dispatch action instead")
+            if StoreMonitor.shared.useStrictMode {
+                StoreMonitor.shared.fatalError("Never update state directly! Use send/dispatch action instead")
             }
-            #endif
             var state = _state
             state[keyPath: keyPath] = newValue
             updateStateWithNotice(state, on: keyPath)
@@ -250,11 +246,7 @@ public final class Store<State: StateStorable>: ObservableObject {
         let toId = ObjectIdentifier(to)
         if isToObserveFrom(toId: toId, fromId: fromId) {
             StoreMonitor.shared.record(event: .cyclicObserve(from: from, to: to.eraseToAnyStore()))
-            #if DEBUG
-            if StoreMonitor.shared.canThrowFatalError {
-                fatalError("Exist cyclic observe from \(from.state.stateId) to \(to.state.stateId)")
-            }
-            #endif
+            StoreMonitor.shared.fatalError("Exist cyclic observe from \(from.state.stateId) to \(to.state.stateId)")
         }
         var arrToObserves = s_mapStateObserve[fromId] ?? []
         arrToObserves.append(toId)
@@ -407,7 +399,7 @@ extension Store where State : StateContainable {
     ///
     /// - Parameter subStore: 被添加的子状态
     public func append<SubState: StateAttachable>(subStore: Store<SubState>) where SubState.UpState == State {
-        self.state.updateSubState(state: subStore.state)
+        self._state.updateSubState(state: subStore.state)
         // 添加 UpStore 绑定
         self.observe(store: subStore) { [weak self] new, _ in
             self?.state.updateSubState(state: new)
