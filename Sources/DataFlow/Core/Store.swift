@@ -94,6 +94,13 @@ public final class Store<State: StateStorable>: ObservableObject {
     
     // MARK: - Get & Set
     
+    /// 动态嫁接 State 属性调用，可嫁接只读属性
+    public subscript<Subject>(dynamicMember keyPath: KeyPath<State, Subject>) -> Subject {
+        get {
+            return _state[keyPath: keyPath]
+        }
+    }
+    
     /// 动态嫁接 State 属性调用
     public subscript<Subject>(dynamicMember keyPath: WritableKeyPath<State, Subject>) -> Subject {
         get {

@@ -551,6 +551,13 @@ class StoreTests: XCTestCase {
         
         cancellable.cancel()
     }
+    
+    func testSubscriptReadOnlyState() {
+        let theName = "name"
+        let readOnlyStore = Store<ReadOnlyState>.box(ReadOnlyState(name: theName))
+        
+        XCTAssertEqual(readOnlyStore.name, theName)
+    }
 }
 
 
@@ -598,6 +605,10 @@ struct ObserveState: StateStorable, StateInitable {
 
 struct OptionalState: StateStorable, StateInitable {
     var name: String? = nil
+}
+
+struct ReadOnlyState: StateStorable {
+    let name: String
 }
 
 enum AnyAction : Action {
