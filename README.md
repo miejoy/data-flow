@@ -36,7 +36,7 @@ DataFlow 是自定义 RSV(Resource & State & View) 设计模式中 State 层的�
 
 - 扩展协议
   - StateSharable: 可共享的状态
-  - StateFullSharable: 完整的可共享状态
+  - FullStateSharable: 完整的可共享状态，包含 StateSharable、StateReducerLoadable、 ActionBindable
 
 ## 安装
 
@@ -46,7 +46,7 @@ DataFlow 是自定义 RSV(Resource & State & View) 设计模式中 State 层的�
 
 ```swift
 dependencies: [
-    .package(url: "https://gogs.miejoy.com:4443/Swift/DataFlow.git", from: "0.1.0"),
+    .package(url: "https://github.com/miejoy/data-flow.git", from: "0.1.0"),
 ]
 ```
 

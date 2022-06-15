@@ -71,6 +71,18 @@ class SharedStateTests: XCTestCase {
         XCTAssertEqual(Store<TestState>.shared.content, content)
     }
     
+    func testFullShareStore() {
+        s_mapSharedStore.removeAll()
+        fullSharedStateReducerCall = false
+        let sharedStore = Store<FullSharedState>.shared
+        XCTAssert(fullSharedStateReducerCall)
+        XCTAssertEqual(sharedStore.content, "")
+        
+        let content = "content"
+        sharedStore.send(action: .changeContent(content))
+        XCTAssertEqual(sharedStore.content, content)
+    }
+    
     func testDuplicateSharedState() {
         
         StoreMonitor.shared.arrObservers = []
@@ -124,6 +136,25 @@ struct TestState: StateSharable, StateReducerLoadable, ActionBindable {
     var content: String = ""
     
     static func loadReducers(on store: Store<TestState>) {
+        store.register { (state, action: TestAction) in
+            switch action {
+            case .changeContent(let string):
+                state.content = string
+            }
+        }
+    }
+}
+
+var fullSharedStateReducerCall = false
+struct FullSharedState: FullStateSharable {
+    
+    typealias UpState = AppState
+    typealias BindAction = TestAction
+    
+    var content: String = ""
+    
+    static func loadReducers(on store: Store<FullSharedState>) {
+        fullSharedStateReducerCall = true
         store.register { (state, action: TestAction) in
             switch action {
             case .changeContent(let string):

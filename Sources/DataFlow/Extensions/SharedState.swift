@@ -11,9 +11,8 @@ import SwiftUI
 
 /// 可共享的状态
 public protocol StateSharable: StateAttachable, StateInitable where UpState: StateSharable {}
-
 /// 完整的可共享状态
-public protocol StateFullSharable: StateSharable, StateReducerLoadable, ActionBindable {}
+public protocol FullStateSharable: StateSharable, StateReducerLoadable, ActionBindable {}
 
 extension Never: StateSharable {
     public typealias UpState = Never

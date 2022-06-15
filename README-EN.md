@@ -36,7 +36,7 @@ State is actually a set of protocols:
 
 - Extra Protocols
   - StateSharable: states that are sharable
-  - StateFullSharable: state that are fully sharable
+  - FullStateSharable: states that are sharable with fully capability, combine with StateSharable, StateReducerLoadable, ActionBindable
 
 ## Installation
 
@@ -46,7 +46,7 @@ Add following dependency at Package.swift file:
 
 ```swift
 dependencies: [
-    .package(url: "https://gogs.miejoy.com:4443/Swift/DataFlow.git", from: "0.1.0"),
+    .package(url: "https://github.com/miejoy/data-flow.git", from: "0.1.0"),
 ]
 ```
 
