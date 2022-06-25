@@ -158,7 +158,7 @@ StateSharable can be used cross all views
 
     struct NormalSharedView: View {
 
-        @SharedState var normalState: NormalSharedState;
+        @SharedState var normalState: NormalSharedState
 
         var body: some View {
             VStack {

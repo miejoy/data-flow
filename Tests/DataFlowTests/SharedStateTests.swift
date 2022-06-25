@@ -112,11 +112,11 @@ class SharedStateTests: XCTestCase {
 
 struct SharedStateTestView: View {
     
-    @SharedState var testState: TestState;
+    @SharedState var testState: TestState
     
     var body: some View {
         VStack {
-            Text(testState.content);
+            Text(testState.content)
             Button("Random Text") {
                 $testState.send(action: .changeContent(String(Int.random(in: 100...999))))
             }
@@ -179,7 +179,7 @@ extension NormalSharedState : ActionBindable {
 
 struct NormalSharedView: View {
     
-    @SharedState var normalState: NormalSharedState;
+    @SharedState var normalState: NormalSharedState
     
     var body: some View {
         VStack {
