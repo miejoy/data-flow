@@ -28,15 +28,15 @@ DataFlow 是自定义 RSV(Resource & State & View) 设计模式中 State 层的�
 当前的 State 是以协议的方式定义的，包含如下几个协议:
 
 - 基础协议
-  - StateStorable: 可存储的状态，这也是最基础的状态协议
-  - StateInitable: 可直接初始化的状态
+  - StorableState: 可存储的状态，这也是最基础的状态协议
+  - InitializableState: 可直接初始化的状态
   - StateContainable: 可容纳子状态的状态
-  - StateAttachable: 可附加于其他状态的状态
-  - StateReducerLoadable: 可自动加载处理器的状态
+  - AttachableState: 可附加于其他状态的状态
+  - ReducerLoadableState: 可自动加载处理器的状态
 
 - 扩展协议
-  - StateSharable: 可共享的状态
-  - FullStateSharable: 完整的可共享状态，包含 StateSharable、StateReducerLoadable、 ActionBindable
+  - SharableState: 可共享的状态
+  - FullSharableState: 完整的可共享状态，包含 SharableState、ReducerLoadableState、 ActionBindable
 
 ## 安装
 
@@ -52,14 +52,14 @@ dependencies: [
 
 ## 使用
 
-### StateStorable 基础状态使用
+### StorableState 基础状态使用
 
 1、定义一个状态
 
 ```swift
 import DataFlow
 
-struct NormalState : StateStorable {
+struct NormalState : StorableState {
     var name: String = ""
 }
 ```
@@ -80,7 +80,7 @@ struct NormalView: View {
 }
 ```
 
-### StateSharable 共享状态使用
+### SharableState 共享状态使用
 
 可共享状态可以在所有界面共享使用
 
@@ -89,7 +89,7 @@ struct NormalView: View {
 ```swift
 import DataFlow
 
-struct NormalSharedState : StateSharable {
+struct NormalSharedState : SharableState {
     typealias UpState = AppState
     
     var name: String = ""
@@ -112,7 +112,7 @@ struct NormalSharedView: View {
 }
 ```
 
-### StateReducerLoadable 处理器的加载和使用
+### ReducerLoadableState 处理器的加载和使用
 
 1、定义一个可处理事件
 
@@ -135,7 +135,7 @@ extension NormalSharedState : ActionBindable {
 3、扩张已有状态支持自动加载处理器
 
 ```swift
-extension NormalSharedState : StateReducerLoadable {
+extension NormalSharedState : ReducerLoadableState {
 
     static func loadReducers(on store: Store<NormalSharedState>) {
         store.registerDefault { (state, action) in

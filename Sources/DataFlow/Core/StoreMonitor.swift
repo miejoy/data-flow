@@ -10,7 +10,7 @@ import Foundation
 import Combine
 
 /// 存储器变化事件
-public enum StoreEvent<State: StateStorable> {
+public enum StoreEvent<State: StorableState> {
     case createStore(Store<State>)
     case beforeReduceActionOn(Store<State>, Store<State>.ReduceFrom)
     case afterReduceActionOn(Store<State>, Store<State>.ReduceFrom, newState: State)
@@ -23,7 +23,7 @@ public enum StoreEvent<State: StateStorable> {
 
 /// 存储器变化观察者
 public protocol StoreMonitorOberver: AnyObject {
-    func receiveStoreEvent<State:StateStorable>(_ event: StoreEvent<State>)
+    func receiveStoreEvent<State:StorableState>(_ event: StoreEvent<State>)
 }
 
 /// 存储器监听器
@@ -60,7 +60,7 @@ public final class StoreMonitor {
     
     /// 记录对应事件，这里只负责将所有事件传递给观察者
     @usableFromInline
-    func record<State:StateStorable>(event: StoreEvent<State>) {
+    func record<State:StorableState>(event: StoreEvent<State>) {
         guard !arrObservers.isEmpty else { return }
         arrObservers.forEach { $0.observer?.receiveStoreEvent(event) }
     }

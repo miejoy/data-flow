@@ -28,15 +28,15 @@ There are several concepts need to understand first:
 State is actually a set of protocols:
 
 - Basic Protocols
-  - StateStorable: states that are storable. it is most foundational one
-  - StateInitable: states can be initialized directly
+  - StorableState: states that are storable. it is most foundational one
+  - InitializableState: states can be initialized directly
   - StateContainable: states that can have substate
-  - StateAttachable: states that can be attached to other states
-  - StateReducerLoadable: states that can load reducer automatically
+  - AttachableState: states that can be attached to other states
+  - ReducerLoadableState: states that can load reducer automatically
 
 - Extra Protocols
-  - StateSharable: states that are sharable
-  - FullStateSharable: states that are sharable with fully capability, combine with StateSharable, StateReducerLoadable, ActionBindable
+  - SharableState: states that are sharable
+  - FullSharableState: states that are sharable with fully capability, combine with SharableState, ReducerLoadableState, ActionBindable
 
 ## Installation
 
@@ -52,14 +52,14 @@ dependencies: [
 
 ## Usage
 
-### StateStorable
+### StorableState
 
 1. define state
 
     ```swift
     import DataFlow
 
-    struct NormalState : StateStorable {
+    struct NormalState : StorableState {
         var name: String = ""
     }
     ```
@@ -80,16 +80,16 @@ dependencies: [
     }
     ```
 
-### StateSharable
+### SharableState
 
-StateSharable can be used cross all views
+SharableState can be used cross all views
 
 1. define state
 
     ```swift
     import DataFlow
 
-    struct NormalSharedState : StateSharable {
+    struct NormalSharedState : SharableState {
         typealias UpState = AppState
 
         var name: String = ""
@@ -112,7 +112,7 @@ StateSharable can be used cross all views
     }
     ```
 
-### StateReducerLoadable
+### ReducerLoadableState
 
 1. define a handleable action
 
@@ -132,10 +132,10 @@ StateSharable can be used cross all views
     }
     ```
 
-3. write a extension for state to comfirm StateReducerLoadable protocol and implement the action
+3. write a extension for state to comfirm ReducerLoadableState protocol and implement the action
 
     ```swift
-    extension NormalSharedState : StateReducerLoadable {
+    extension NormalSharedState : ReducerLoadableState {
 
         static func loadReducers(on store: Store<NormalSharedState>) {
             store.registerDefault { (state, action) in

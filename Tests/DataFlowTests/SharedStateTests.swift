@@ -88,7 +88,7 @@ class SharedStateTests: XCTestCase {
         StoreMonitor.shared.arrObservers = []
         class Oberver: StoreMonitorOberver {
             var duplicateFatalErrorCall = false
-            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StateStorable {
+            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
                 if case .fatalError(let message) = event,
                     message == ("Attach State[DuplicateSharedState] to UpState[AppState] " +
                                 "with stateId[NormalSharedState] failed: " +
@@ -128,7 +128,7 @@ enum TestAction: Action {
     case changeContent(String)
 }
 
-struct TestState: StateSharable, StateReducerLoadable, ActionBindable {
+struct TestState: SharableState, ReducerLoadableState, ActionBindable {
     
     typealias UpState = AppState
     typealias BindAction = TestAction
@@ -146,7 +146,7 @@ struct TestState: StateSharable, StateReducerLoadable, ActionBindable {
 }
 
 var fullSharedStateReducerCall = false
-struct FullSharedState: FullStateSharable {
+struct FullSharedState: FullSharableState {
     
     typealias UpState = AppState
     typealias BindAction = TestAction
@@ -168,7 +168,7 @@ enum NormalAction : Action {
     case userClick
 }
 
-struct NormalSharedState : StateSharable {
+struct NormalSharedState : SharableState {
     typealias UpState = AppState
     var name: String = ""
 }
@@ -192,7 +192,7 @@ struct NormalSharedView: View {
 }
 
 var sharedReducerStateIsLoad = false
-struct SharedReducerState : StateSharable, StateReducerLoadable {
+struct SharedReducerState : SharableState, ReducerLoadableState {
 
     typealias UpState = AppState
     
@@ -201,7 +201,7 @@ struct SharedReducerState : StateSharable, StateReducerLoadable {
     }
 }
 
-struct DuplicateSharedState : StateSharable {
+struct DuplicateSharedState : SharableState {
     typealias UpState = AppState
     var name: String = ""
     

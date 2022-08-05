@@ -10,10 +10,10 @@ import Foundation
 
 /// 被抹去 State 类型的存储器
 public final class AnyStore {
-    public var stateType: StateStorable.Type
+    public var stateType: StorableState.Type
     public var value : Any
     
-    init<State: StateStorable>(store: Store<State>) {
+    init<State: StorableState>(store: Store<State>) {
         self.stateType = State.self
         self.value = store
     }

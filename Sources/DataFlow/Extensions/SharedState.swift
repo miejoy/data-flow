@@ -10,18 +10,18 @@ import Combine
 import SwiftUI
 
 /// 可共享的状态
-public protocol StateSharable: StateAttachable, StateInitable where UpState: StateSharable {}
+public protocol SharableState: AttachableState, InitializableState where UpState: SharableState {}
 /// 完整的可共享状态
-public protocol FullStateSharable: StateSharable, StateReducerLoadable, ActionBindable {}
+public protocol FullSharableState: SharableState, ReducerLoadableState, ActionBindable {}
 
-extension Never: StateSharable {
+extension Never: SharableState {
     public typealias UpState = Never
 }
 
 
 /// 共享状态包装器
 @propertyWrapper
-public struct SharedState<State: StateSharable> : DynamicProperty {
+public struct SharedState<State: SharableState> : DynamicProperty {
     
     @ObservedObject private var store: Store<State>
     
@@ -44,7 +44,7 @@ public struct SharedState<State: StateSharable> : DynamicProperty {
     }
 }
 
-extension SharedState where State : StateReducerLoadable {
+extension SharedState where State : ReducerLoadableState {
     public init() {
         store = .shared
     }
@@ -52,11 +52,11 @@ extension SharedState where State : StateReducerLoadable {
 
 // MARK: - Extension Store
 
-/// 保存所有的共享状态，ObjectIdentifier 为 StateSharable 类型的唯一值
+/// 保存所有的共享状态，ObjectIdentifier 为 SharableState 类型的唯一值
 var s_mapSharedStore : [ObjectIdentifier:Any] = [:]
 
 /// 可共享的状态的状态
-extension Store where State : StateSharable {
+extension Store where State : SharableState {
     
     /// 私有共享状态存储器创建
     static var _shared : Store<State> {
@@ -89,7 +89,7 @@ extension Store where State : StateSharable {
 }
 
 /// 可共享和加载处理器的状态
-extension Store where State : StateSharable & StateReducerLoadable {
+extension Store where State : SharableState & ReducerLoadableState {
     /// 共享存储器，所有地方都可共享
     public static var shared : Store<State> {
         let store = _shared

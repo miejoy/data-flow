@@ -10,14 +10,14 @@ import Foundation
 import Combine
 
 /// 事件处理器
-public typealias Reducer<StateStorable,Action> = (_ state: inout StateStorable, _ action: Action) -> Void
+public typealias Reducer<StorableState,Action> = (_ state: inout StorableState, _ action: Action) -> Void
 
 /// 循环观察检查存储器，保存了所有 store 的观察关系，用于避免 state 的循环观察，ObjectIdentifier 为 store 实例的唯一值
 var s_mapStateObserve : [ObjectIdentifier:[ObjectIdentifier]] = [:]
 
 /// 通用存储器
 @dynamicMemberLookup
-public final class Store<State: StateStorable>: ObservableObject {
+public final class Store<State: StorableState>: ObservableObject {
     
     public typealias StateChangeCallback = (_ new: State, _ old: State) -> Void
     typealias StateValueChangeCallback = (_ new: Any, _ old: Any) -> Void
@@ -30,7 +30,7 @@ public final class Store<State: StateStorable>: ObservableObject {
     }
     
     /// 状态监听者
-    struct StateObserver<State:StateStorable> {
+    struct StateObserver<State:StorableState> {
         let observerId: Int
         let callback: Store<State>.StateChangeCallback
         
@@ -186,7 +186,7 @@ public final class Store<State: StateStorable>: ObservableObject {
     ///
     /// - Parameter store: 被观察的存储器
     /// - Parameter callback: 被观察的存储器状态变化时的回调
-    public func observe<S:StateStorable>(store: Store<S>, callback: @escaping (_ new: S, _ old: S) -> Void) {
+    public func observe<S:StorableState>(store: Store<S>, callback: @escaping (_ new: S, _ old: S) -> Void) {
         // 添加循环观察判断
         Self.recordObserve(from: self, to: store)
         let innerCancellable = store.addObserver { new, old in
@@ -205,7 +205,7 @@ public final class Store<State: StateStorable>: ObservableObject {
     ///
     /// - Parameter store: 被观察的存储器
     /// - Parameter callback: 被观察的存储器状态变化时的回调
-    public func observe<S:StateStorable, A:Action>(store: Store<S>, callback: @escaping (_ new: S, _ old: S) -> A) {
+    public func observe<S:StorableState, A:Action>(store: Store<S>, callback: @escaping (_ new: S, _ old: S) -> A) {
         // 添加循环观察判断
         Self.recordObserve(from: self, to: store)
         let innerCancellable = store.addObserver { [weak self] new, old in
@@ -226,7 +226,7 @@ public final class Store<State: StateStorable>: ObservableObject {
     /// - Parameter store: 被观察的存储器
     /// - Parameter keyPath: 被观察对应值的 keyPath
     /// - Parameter callback: 被观察对应值的变化时调用该回调
-    public func observe<S:StateStorable, T:Equatable>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T) -> Void) {
+    public func observe<S:StorableState, T:Equatable>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T) -> Void) {
         store.addObserver(of: keyPath) { new, old in
             callback(new, old)
         }
@@ -239,7 +239,7 @@ public final class Store<State: StateStorable>: ObservableObject {
     /// - Parameter store: 被观察的存储器
     /// - Parameter keyPath: 被观察对应值的 keyPath
     /// - Parameter callback: 被观察对应值的变化时调用该回调生成可应用的事件
-    public func observe<S:StateStorable, T:Equatable, A:Action>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T) -> A) {
+    public func observe<S:StorableState, T:Equatable, A:Action>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T) -> A) {
         store.addObserver(of: keyPath) { [weak self] new, old in
             let action = callback(new, old)
             self?.apply(action: action)
@@ -248,7 +248,7 @@ public final class Store<State: StateStorable>: ObservableObject {
     }
         
     /// 记录 from store 观察 to store
-    static func recordObserve<FS:StateStorable, TS:StateStorable>(from: Store<FS>, to: Store<TS>) {
+    static func recordObserve<FS:StorableState, TS:StorableState>(from: Store<FS>, to: Store<TS>) {
         let fromId = ObjectIdentifier(from)
         let toId = ObjectIdentifier(to)
         if isToObserveFrom(toId: toId, fromId: fromId) {
@@ -402,10 +402,10 @@ public final class Store<State: StateStorable>: ObservableObject {
 
 /// 可容纳子状态的状态
 extension Store where State : StateContainable {
-    /// 添加子状态。注：StateSharable 会自动调用
+    /// 添加子状态。注：SharableState 会自动调用
     ///
     /// - Parameter subStore: 被添加的子状态
-    public func append<SubState: StateAttachable>(subStore: Store<SubState>) where SubState.UpState == State {
+    public func append<SubState: AttachableState>(subStore: Store<SubState>) where SubState.UpState == State {
         self._state.updateSubState(state: subStore.state)
         // 添加 UpStore 绑定
         self.observe(store: subStore) { [weak self] new, _ in
@@ -419,10 +419,10 @@ extension Store where State : StateContainable {
 }
 
 
-// MARK: - StateReducerLoadable
+// MARK: - ReducerLoadableState
 
 /// 可加载处理器的状态
-extension Store where State : StateReducerLoadable {
+extension Store where State : ReducerLoadableState {
     /// 包装对应状态，生成临时存储器，不会被共享
     ///
     /// - Parameter state: 需要包装的状态
@@ -434,10 +434,10 @@ extension Store where State : StateReducerLoadable {
     }
 }
 
-// MARK: - StateInitable & Init
+// MARK: - InitializableState & Init
 
 /// 可直接初始化的状态
-extension Store where State : StateInitable {
+extension Store where State : InitializableState {
     /// 可直接初始化的状态，对于存储器也可以直接初始化
     public convenience init() {
         self.init(state: State())
@@ -445,7 +445,7 @@ extension Store where State : StateInitable {
 }
 
 /// 可直接初始化和加载处理器的状态
-extension Store where State : StateInitable & StateReducerLoadable {
+extension Store where State : InitializableState & ReducerLoadableState {
     /// 可直接初始化的状态，对于存储器也可以直接初始化
     public convenience init() {
         self.init(state: State())

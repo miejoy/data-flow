@@ -29,7 +29,7 @@ class StoreTests: XCTestCase {
         cancellable.cancel()
     }
     
-    func testStateInitable() {
+    func testInitializableState() {
         let normalStore = Store<NormalState>()
         XCTAssertEqual(normalStore.name, "")
     }
@@ -64,7 +64,7 @@ class StoreTests: XCTestCase {
         XCTAssertEqual(saveSubStateChange?.subValue, 1)
     }
     
-    func testStateReducerLoadable() {
+    func testReducerLoadableState() {
         _ = Store<ReducerState>.box(.init())
         XCTAssert(reducerStateIsLoad)
     }
@@ -381,7 +381,7 @@ class StoreTests: XCTestCase {
         StoreMonitor.shared.arrObservers = []
         class Oberver: StoreMonitorOberver {
             var cyclicObserveCall = false
-            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StateStorable {
+            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
                 if case .cyclicObserve = event {
                     cyclicObserveCall = true
                 }
@@ -409,7 +409,7 @@ class StoreTests: XCTestCase {
         StoreMonitor.shared.arrObservers = []
         class Oberver: StoreMonitorOberver {
             var cyclicObserveCall = false
-            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StateStorable {
+            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
                 if case .cyclicObserve = event {
                     cyclicObserveCall = true
                 }
@@ -508,7 +508,7 @@ class StoreTests: XCTestCase {
         defer { StoreMonitor.shared.useStrictMode = false }
         class Oberver: StoreMonitorOberver {
             var strictModeFatalErrorCall = false
-            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StateStorable {
+            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
                 if case .fatalError(let message) = event,
                     message == "Never update state directly! Use send/dispatch action instead" {
                     strictModeFatalErrorCall = true
@@ -561,32 +561,32 @@ class StoreTests: XCTestCase {
 }
 
 
-struct NormalState : StateStorable, StateInitable {
+struct NormalState : StorableState, InitializableState {
     var name: String = ""
 }
 
 var reducerStateIsLoad = false
-struct ReducerState : StateStorable, StateReducerLoadable {
+struct ReducerState : StorableState, ReducerLoadableState {
     static func loadReducers(on store: Store<ReducerState>) {
         reducerStateIsLoad = true
     }
 }
 
 var initReducerStateIsLoad = false
-struct InitReducerState : StateInitable, StateReducerLoadable {
+struct InitReducerState : InitializableState, ReducerLoadableState {
     static func loadReducers(on store: Store<InitReducerState>) {
         initReducerStateIsLoad = true
     }
 }
 
-struct ContainState : StateStorable, StateContainable {
+struct ContainState : StorableState, StateContainable {
     
-    var subStates: [String : StateStorable] = [:]
+    var subStates: [String : StorableState] = [:]
     
     typealias UpState = AppState
 }
 
-struct ContainSubState : StateStorable, StateAttachable {
+struct ContainSubState : StorableState, AttachableState {
     
     typealias UpState = ContainState
     
@@ -594,20 +594,20 @@ struct ContainSubState : StateStorable, StateAttachable {
     var testValue : Int = 0
 }
 
-struct SpecificState : StateStorable, ActionBindable {
+struct SpecificState : StorableState, ActionBindable {
     typealias BindAction = SpecificAction
 }
 
-struct ObserveState: StateStorable, StateInitable {
+struct ObserveState: StorableState, InitializableState {
     var name: String = ""
     var otherValue: String = ""
 }
 
-struct OptionalState: StateStorable, StateInitable {
+struct OptionalState: StorableState, InitializableState {
     var name: String? = nil
 }
 
-struct ReadOnlyState: StateStorable {
+struct ReadOnlyState: StorableState {
     let name: String
 }
 
