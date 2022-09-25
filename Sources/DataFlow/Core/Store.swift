@@ -101,7 +101,7 @@ public final class Store<State: StorableState>: ObservableObject {
         }
     }
     
-    /// 动态嫁接 State 属性调用
+    /// 动态嫁接可比较的 State 属性调用
     public subscript<Subject: Equatable>(dynamicMember keyPath: WritableKeyPath<State, Subject>) -> Subject {
         get {
             return _state[keyPath: keyPath]
@@ -119,6 +119,22 @@ public final class Store<State: StorableState>: ObservableObject {
             updateStateWithNotice(state, on: keyPath)
         }
     }
+    
+    /// 动态嫁接 State 属性调用（暂时保留，后面考虑是否移除）
+    public subscript<Subject>(dynamicMember keyPath: WritableKeyPath<State, Subject>) -> Subject {
+        get {
+            return _state[keyPath: keyPath]
+        }
+        set {
+            if StoreMonitor.shared.useStrictMode {
+                StoreMonitor.shared.fatalError("Never update state directly! Use send/dispatch action instead")
+            }
+            var state = _state
+            state[keyPath: keyPath] = newValue
+            updateStateWithNotice(state, on: keyPath)
+        }
+    }
+    
     
     // MARK: - Register
     
