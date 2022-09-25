@@ -102,13 +102,17 @@ public final class Store<State: StorableState>: ObservableObject {
     }
     
     /// 动态嫁接 State 属性调用
-    public subscript<Subject>(dynamicMember keyPath: WritableKeyPath<State, Subject>) -> Subject {
+    public subscript<Subject: Equatable>(dynamicMember keyPath: WritableKeyPath<State, Subject>) -> Subject {
         get {
             return _state[keyPath: keyPath]
         }
         set {
             if StoreMonitor.shared.useStrictMode {
                 StoreMonitor.shared.fatalError("Never update state directly! Use send/dispatch action instead")
+            }
+            if _state[keyPath: keyPath] == newValue {
+                // 相同值不更新 state
+                return
             }
             var state = _state
             state[keyPath: keyPath] = newValue

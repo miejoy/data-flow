@@ -20,7 +20,8 @@ class StoreTests: XCTestCase {
         
         XCTAssertFalse(willChangeCall)
         normalStore.name = ""
-        XCTAssertTrue(willChangeCall)
+        // 相同值不会调用 willChange
+        XCTAssertFalse(willChangeCall)
         XCTAssertEqual(normalStore.name, "")
         willChangeCall = false
         normalStore.state.name = "text"
@@ -235,9 +236,9 @@ class StoreTests: XCTestCase {
         
         observeStateCall = false
         observeValueCall = false
-        secondStore.name = "text"
+        secondStore.name = "text1"
         XCTAssert(observeStateCall)
-        XCTAssert(!observeValueCall)
+        XCTAssert(observeValueCall)
         
         observeStateCall = false
         observeValueCall = false
