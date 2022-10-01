@@ -70,6 +70,8 @@ public final class Store<State: StorableState>: ObservableObject {
         }
     }
     
+    var reducingAction: Action? = nil
+    
     /// 存储处理器
     var mapReducer : [ObjectIdentifier: Reducer<State,Action>] = [:]
     var mapValueObservers : [AnyKeyPath: [StateValueObserver]] = [:]
@@ -341,6 +343,10 @@ public final class Store<State: StorableState>: ObservableObject {
     
     /// 开始处理事件
     func reduce<A: Action>(action: A, from: ReduceFrom) {
+        if let reducingAction = reducingAction {
+            StoreMonitor.shared.fatalError("Can't reduce action '\(action)' in reducing action '\(reducingAction)'")
+        }
+        reducingAction = action
         var isChange = false
         var newState = _state {
             didSet {
@@ -354,6 +360,7 @@ public final class Store<State: StorableState>: ObservableObject {
             StoreMonitor.shared.record(event: .failedReduceActionOn(self, from))
         }
         StoreMonitor.shared.record(event: .afterReduceActionOn(self, from, newState: newState))
+        reducingAction = nil
         if isChange {
             updateStateWithNotice(newState)
         }

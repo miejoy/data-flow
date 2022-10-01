@@ -559,8 +559,61 @@ class StoreTests: XCTestCase {
         
         XCTAssertEqual(readOnlyStore.name, theName)
     }
+    
+    func testNestedStateReduce() {
+        let fromStore = Store<NestedReduceFromState>.box(.init())
+        let toStore = Store<NestedReduceToState>.box(.init())
+        
+        fromStore.observeDefault(store: toStore, of: \.stateB, callback: { new,old in .changeStateB })
+        toStore.observeDefault(store: fromStore, of: \.stateA, callback: { new,old in .changeStateB })
+        
+        XCTAssertEqual(fromStore.state.stateA, false)
+        XCTAssertEqual(fromStore.state.stateB, false)
+        
+        fromStore.send(action: .changeStateA)
+        
+        XCTAssertEqual(fromStore.state.stateA, true)
+        XCTAssertEqual(fromStore.state.stateB, true)
+    }
+    
+    func testReduceInOtherReduce() {
+        StoreMonitor.shared.arrObservers = []
+        StoreMonitor.shared.useStrictMode = true
+        defer { StoreMonitor.shared.useStrictMode = false }
+        class Oberver: StoreMonitorOberver {
+            var strictModeFatalErrorCall = false
+            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
+                if case .fatalError(let message) = event,
+                   message == "Can't reduce action '\(NestedAction.changeStateB)' in reducing action '\(NestedAction.changeStateA)'" {
+                    strictModeFatalErrorCall = true
+                }
+            }
+        }
+        let oberver = Oberver()
+        let cancellable = StoreMonitor.shared.addObserver(oberver)
+        
+        let recurseStore = Store<RecurseReduceState>.box(.init())
+        
+        recurseStore.send(action: .changeStateA)
+        
+        XCTAssert(oberver.strictModeFatalErrorCall)
+        
+        cancellable.cancel()
+    }
 }
 
+enum AnyAction : Action {
+    case any
+}
+
+enum SpecificAction : Action {
+    case specific
+}
+
+enum NestedAction: Action {
+    case changeStateA
+    case changeStateB
+}
 
 struct NormalState : StorableState, InitializableState {
     var name: String = ""
@@ -612,10 +665,57 @@ struct ReadOnlyState: StorableState {
     let name: String
 }
 
-enum AnyAction : Action {
-    case any
+struct NestedReduceFromState: StorableState, ReducerLoadableState, ActionBindable {
+    typealias BindAction = NestedAction
+    
+    var stateA: Bool = false
+    var stateB: Bool = false
+    
+    static func loadReducers(on store: Store<NestedReduceFromState>) {
+        store.registerDefault { state, action in
+            switch action {
+            case .changeStateA:
+                state.stateA.toggle()
+            case .changeStateB:
+                state.stateB.toggle()
+            }
+        }
+    }
 }
 
-enum SpecificAction : Action {
-    case specific
+struct NestedReduceToState: StorableState, ReducerLoadableState, ActionBindable {
+    typealias BindAction = NestedAction
+    
+    var stateA: Bool = false
+    var stateB: Bool = false
+    
+    static func loadReducers(on store: Store<NestedReduceToState>) {
+        store.registerDefault { state, action in
+            switch action {
+            case .changeStateA:
+                state.stateA.toggle()
+            case .changeStateB:
+                state.stateB.toggle()
+            }
+        }
+    }
 }
+
+struct RecurseReduceState: StorableState, ReducerLoadableState, ActionBindable {
+    typealias BindAction = NestedAction
+    
+    var stateA: Bool = false
+    var stateB: Bool = false
+    
+    static func loadReducers(on store: Store<RecurseReduceState>) {
+        store.registerDefault { [weak store] state, action in
+            switch action {
+            case .changeStateA:
+                store?.send(action: .changeStateB)
+            case .changeStateB:
+                state.stateB.toggle()
+            }
+        }
+    }
+}
+
