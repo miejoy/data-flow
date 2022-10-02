@@ -16,6 +16,8 @@ public enum StoreEvent<State: StorableState> {
     case afterReduceActionOn(Store<State>, Store<State>.ReduceFrom, newState: State)
     case failedReduceActionOn(Store<State>, Store<State>.ReduceFrom)
     case didUpdateStateOn(Store<State>, oldState: State)
+    /// 在处理当前事件时，发现正在进行另一个事件处理
+    case reduceInOtherReduce(Store<State>, curAction: Action, otherAction: Action)
     case cyclicObserve(from: Store<State>, to: AnyStore)
     case destoryStore(Store<State>)
     case fatalError(String)

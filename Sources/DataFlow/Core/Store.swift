@@ -70,7 +70,11 @@ public final class Store<State: StorableState>: ObservableObject {
         }
     }
     
+    // 这两个属性为了解决一个 state 在处理一个 action 的途中触发需要处理另一个 action
+    // 当前正在处理的 action
     var reducingAction: Action? = nil
+    // 如果存在处理中的 action，这里会保存带处理的 action
+    var paddingActions: [(Action, ReduceFrom)] = []
     
     /// 存储处理器 [ObjectIdentifier(Action) : ( [dependerId], Reducer) ]
     var mapReducer : [ObjectIdentifier: ([ReduceDependerId], Reducer<State,Action>)] = [:]
@@ -344,7 +348,9 @@ public final class Store<State: StorableState>: ObservableObject {
     /// 开始处理事件
     func reduce<A: Action>(action: A, from: ReduceFrom) {
         if let reducingAction = reducingAction {
-            StoreMonitor.shared.fatalError("Can't reduce action '\(action)' in reducing action '\(reducingAction)'")
+            StoreMonitor.shared.record(event: .reduceInOtherReduce(self, curAction: action, otherAction: reducingAction))
+            paddingActions.insert((action, from), at: 0)
+            return
         }
         
         var isChange = false
@@ -369,6 +375,10 @@ public final class Store<State: StorableState>: ObservableObject {
         
         if isChange {
             updateStateWithNotice(newState)
+        }
+        
+        if let (nextAction, nextFrom) = paddingActions.popLast() {
+            reduce(action: nextAction, from: nextFrom)
         }
     }
     

@@ -577,26 +577,15 @@ class StoreTests: XCTestCase {
     }
     
     func testReduceInOtherReduce() {
-        StoreMonitor.shared.arrObservers = []
-        class Oberver: StoreMonitorOberver {
-            var recurseReduceFatalErrorCall = false
-            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
-                if case .fatalError(let message) = event,
-                   message == "Can't reduce action '\(NestedAction.changeStateB)' in reducing action '\(NestedAction.changeStateA)'" {
-                    recurseReduceFatalErrorCall = true
-                }
-            }
-        }
-        let oberver = Oberver()
-        let cancellable = StoreMonitor.shared.addObserver(oberver)
-        
         let recurseStore = Store<RecurseReduceState>.box(.init())
+        
+        XCTAssertEqual(recurseStore.state.stateA, false)
+        XCTAssertEqual(recurseStore.state.stateB, false)
         
         recurseStore.send(action: .changeStateA)
         
-        XCTAssert(oberver.recurseReduceFatalErrorCall)
-        
-        cancellable.cancel()
+        XCTAssertEqual(recurseStore.state.stateA, true)
+        XCTAssertEqual(recurseStore.state.stateB, true)
     }
 }
 
@@ -709,6 +698,7 @@ struct RecurseReduceState: StorableState, ReducerLoadableState, ActionBindable {
         store.registerDefault { [weak store] state, action in
             switch action {
             case .changeStateA:
+                state.stateA.toggle()
                 store?.send(action: .changeStateB)
             case .changeStateB:
                 state.stateB.toggle()
