@@ -28,12 +28,12 @@ extension Store where State : ActionBindable {
     /// 注册状态处理方法
     ///
     /// - Parameter reducer: 注册的处理方法
-    public func registerDefault(reducer: @escaping Reducer<State, State.BindAction>) {
-        self.mapReducer[ObjectIdentifier(State.BindAction.self)] = { state, action in
+    public func registerDefault(dependers: [ReduceDependerId] = [], reducer: @escaping Reducer<State, State.BindAction>) {
+        self.mapReducer[ObjectIdentifier(State.BindAction.self)] = (dependers, { state, action in
             if let specificAction = action as? State.BindAction {
                 reducer(&state, specificAction)
             }
-        }
+        })
     }
     
     // MARK: - Observe

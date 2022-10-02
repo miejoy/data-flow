@@ -72,8 +72,8 @@ public final class Store<State: StorableState>: ObservableObject {
     
     var reducingAction: Action? = nil
     
-    /// 存储处理器
-    var mapReducer : [ObjectIdentifier: Reducer<State,Action>] = [:]
+    /// 存储处理器 [ObjectIdentifier(Action) : ( [dependerId], Reducer) ]
+    var mapReducer : [ObjectIdentifier: ([ReduceDependerId], Reducer<State,Action>)] = [:]
     var mapValueObservers : [AnyKeyPath: [StateValueObserver]] = [:]
     var arrObservers : [StateObserver<State>] = []
     var destroyCallback : ((State) -> Void)? = nil
@@ -143,12 +143,12 @@ public final class Store<State: StorableState>: ObservableObject {
     /// 注册状态处理方法
     ///
     /// - Parameter reducer: 注册的处理方法
-    public func register<A:Action>(reducer: @escaping Reducer<State,A>) {
-        self.mapReducer[ObjectIdentifier(A.self)] = { state, action in
+    public func register<A:Action>(dependers: [ReduceDependerId] = [], reducer: @escaping Reducer<State,A>) {
+        self.mapReducer[ObjectIdentifier(A.self)] = (dependers, { state, action in
             if let specificAction = action as? A {
                 reducer(&state, specificAction)
             }
-        }
+        })
     }
     
     
@@ -346,7 +346,7 @@ public final class Store<State: StorableState>: ObservableObject {
         if let reducingAction = reducingAction {
             StoreMonitor.shared.fatalError("Can't reduce action '\(action)' in reducing action '\(reducingAction)'")
         }
-        reducingAction = action
+        
         var isChange = false
         var newState = _state {
             didSet {
@@ -354,13 +354,19 @@ public final class Store<State: StorableState>: ObservableObject {
             }
         }
         StoreMonitor.shared.record(event: .beforeReduceActionOn(self, from))
-        if let reducer = mapReducer[ObjectIdentifier(A.self)] {
+        
+        if let (dependers, reducer) = mapReducer[ObjectIdentifier(A.self)] {
+            guard StoreCenter.shared.checkDeperders(dependers, newState, action) else {
+                return
+            }
+            reducingAction = action
             reducer(&newState, action)
+            reducingAction = nil
         } else {
             StoreMonitor.shared.record(event: .failedReduceActionOn(self, from))
         }
         StoreMonitor.shared.record(event: .afterReduceActionOn(self, from, newState: newState))
-        reducingAction = nil
+        
         if isChange {
             updateStateWithNotice(newState)
         }

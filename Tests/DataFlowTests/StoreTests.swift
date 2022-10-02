@@ -578,14 +578,12 @@ class StoreTests: XCTestCase {
     
     func testReduceInOtherReduce() {
         StoreMonitor.shared.arrObservers = []
-        StoreMonitor.shared.useStrictMode = true
-        defer { StoreMonitor.shared.useStrictMode = false }
         class Oberver: StoreMonitorOberver {
-            var strictModeFatalErrorCall = false
+            var recurseReduceFatalErrorCall = false
             func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
                 if case .fatalError(let message) = event,
                    message == "Can't reduce action '\(NestedAction.changeStateB)' in reducing action '\(NestedAction.changeStateA)'" {
-                    strictModeFatalErrorCall = true
+                    recurseReduceFatalErrorCall = true
                 }
             }
         }
@@ -596,7 +594,7 @@ class StoreTests: XCTestCase {
         
         recurseStore.send(action: .changeStateA)
         
-        XCTAssert(oberver.strictModeFatalErrorCall)
+        XCTAssert(oberver.recurseReduceFatalErrorCall)
         
         cancellable.cancel()
     }
