@@ -129,8 +129,6 @@ enum TestAction: Action {
 }
 
 struct TestState: SharableState, ReducerLoadableState, ActionBindable {
-    
-    typealias UpState = AppState
     typealias BindAction = TestAction
     
     var content: String = ""
@@ -147,8 +145,6 @@ struct TestState: SharableState, ReducerLoadableState, ActionBindable {
 
 var fullSharedStateReducerCall = false
 struct FullSharedState: FullSharableState {
-    
-    typealias UpState = AppState
     typealias BindAction = TestAction
     
     var content: String = ""
@@ -169,7 +165,6 @@ enum NormalAction : Action {
 }
 
 struct NormalSharedState : SharableState {
-    typealias UpState = AppState
     var name: String = ""
 }
 
@@ -193,16 +188,12 @@ struct NormalSharedView: View {
 
 var sharedReducerStateIsLoad = false
 struct SharedReducerState : SharableState, ReducerLoadableState {
-
-    typealias UpState = AppState
-    
     static func loadReducers(on store: Store<SharedReducerState>) {
         sharedReducerStateIsLoad = true
     }
 }
 
 struct DuplicateSharedState : SharableState {
-    typealias UpState = AppState
     var name: String = ""
     
     var stateId: String = "NormalSharedState"

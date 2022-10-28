@@ -90,8 +90,6 @@ SharableState can be used cross all views
     import DataFlow
 
     struct NormalSharedState : SharableState {
-        typealias UpState = AppState
-
         var name: String = ""
     }
     ```

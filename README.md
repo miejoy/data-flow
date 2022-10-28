@@ -90,8 +90,6 @@ struct NormalView: View {
 import DataFlow
 
 struct NormalSharedState : SharableState {
-    typealias UpState = AppState
-    
     var name: String = ""
 }
 ```

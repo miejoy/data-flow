@@ -26,7 +26,7 @@ public protocol StateContainable {
 /// 可附加于其他状态的状态
 public protocol AttachableState: StorableState {
     /// 上一级状态
-    associatedtype UpState : StateContainable = AppState
+    associatedtype UpState : StateContainable
 }
 
 /// 可自动加载处理器的状态

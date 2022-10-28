@@ -10,7 +10,9 @@ import Combine
 import SwiftUI
 
 /// 可共享的状态
-public protocol SharableState: AttachableState, InitializableState where UpState: SharableState {}
+public protocol SharableState: AttachableState, InitializableState where UpState: SharableState {
+    associatedtype UpState = AppState
+}
 /// 完整的可共享状态
 public protocol FullSharableState: SharableState, ReducerLoadableState, ActionBindable {}
 
