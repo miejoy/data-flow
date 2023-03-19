@@ -75,6 +75,24 @@ class StoreTests: XCTestCase {
         XCTAssert(initReducerStateIsLoad)
     }
     
+    func testSubscript() {
+        let store = Store<SubscriptState>()
+        
+        XCTAssertEqual(store.normalState.name, "")
+        
+        store.normalState.name = "text"
+        XCTAssertEqual(store.normalState.name, "text")
+    }
+    
+    func testSubscriptEquatable() {
+        let store = Store<SubscriptState>()
+        
+        XCTAssertEqual(store.name, "")
+        
+        store.name = "text"
+        XCTAssertEqual(store.name, "text")
+    }
+    
     func testSendAnyAction() {
         let normalStore = Store<NormalState>.box(NormalState())
         var reducerCall = false
@@ -528,6 +546,11 @@ class StoreTests: XCTestCase {
         oberver.strictModeFatalErrorCall = false
         normalStore.name = ""
         XCTAssert(oberver.strictModeFatalErrorCall)
+        
+        let subscriptStore = Store<SubscriptState>()
+        oberver.strictModeFatalErrorCall = false
+        subscriptStore.normalState.name = ""
+        XCTAssert(oberver.strictModeFatalErrorCall)
        
         cancellable.cancel()
     }
@@ -646,6 +669,11 @@ struct ObserveState: StorableState, InitializableState {
 
 struct OptionalState: StorableState, InitializableState {
     var name: String? = nil
+}
+
+struct SubscriptState : StorableState, InitializableState {
+    var name: String = ""
+    var normalState: NormalState = .init()
 }
 
 struct ReadOnlyState: StorableState {

@@ -46,12 +46,6 @@ public struct SharedState<State: SharableState> : DynamicProperty {
     }
 }
 
-extension SharedState where State : ReducerLoadableState {
-    public init() {
-        store = .shared
-    }
-}
-
 // MARK: - Extension Store
 
 /// 保存所有的共享状态，ObjectIdentifier 为 SharableState 类型的唯一值
@@ -87,16 +81,5 @@ extension Store where State : SharableState {
     /// 共享存储器，所有地方都可共享
     public static var shared : Store<State> {
         return _shared
-    }
-}
-
-/// 可共享和加载处理器的状态
-extension Store where State : SharableState & ReducerLoadableState {
-    /// 共享存储器，所有地方都可共享
-    public static var shared : Store<State> {
-        let store = _shared
-        // 放在后面防止循环调用
-        State.loadReducers(on: store)
-        return store
     }
 }

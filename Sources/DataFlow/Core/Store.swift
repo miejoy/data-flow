@@ -95,6 +95,7 @@ public final class Store<State: StorableState>: ObservableObject {
     
     init(state: State) {
         self._state = state
+        State.didBoxed(on: self)
         StoreMonitor.shared.record(event: .createStore(self))
     }
     
@@ -461,22 +462,6 @@ extension Store where State : StateContainable {
     }
 }
 
-
-// MARK: - ReducerLoadableState
-
-/// 可加载处理器的状态
-extension Store where State : ReducerLoadableState {
-    /// 包装对应状态，生成临时存储器，不会被共享
-    ///
-    /// - Parameter state: 需要包装的状态
-    /// - Returns: 返回对应存储器
-    public static func box(_ state: State) -> Self {
-        let store = self.init(state: state)
-        State.loadReducers(on: store)
-        return store
-    }
-}
-
 // MARK: - InitializableState & Init
 
 /// 可直接初始化的状态
@@ -484,14 +469,5 @@ extension Store where State : InitializableState {
     /// 可直接初始化的状态，对于存储器也可以直接初始化
     public convenience init() {
         self.init(state: State())
-    }
-}
-
-/// 可直接初始化和加载处理器的状态
-extension Store where State : InitializableState & ReducerLoadableState {
-    /// 可直接初始化的状态，对于存储器也可以直接初始化
-    public convenience init() {
-        self.init(state: State())
-        State.loadReducers(on: self)
     }
 }

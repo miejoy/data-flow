@@ -11,6 +11,29 @@ import SwiftUI
 
 class ReduceDependerTests: XCTestCase {
     
+    func testDependerDuplicateRegister() {
+        StoreCenter.shared.dependerMap = [:]
+        class Oberver: StoreMonitorOberver {
+            var dependerDuplicateRegisterFatalErrorCall = false
+            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
+                if case .fatalError(let message) = event,
+                   message == "Duplicate registration of reduce depender '\(NormalDepender.dependerId)'" {
+                    dependerDuplicateRegisterFatalErrorCall = true
+                }
+            }
+        }
+        let oberver = Oberver()
+        let cancellable = StoreMonitor.shared.addObserver(oberver)
+        
+        let depender = NormalDepender()
+        StoreCenter.shared.registeReduceDepender(depender)
+        XCTAssertEqual(oberver.dependerDuplicateRegisterFatalErrorCall, false)
+        StoreCenter.shared.registeReduceDepender(depender)
+        XCTAssertEqual(oberver.dependerDuplicateRegisterFatalErrorCall, true)
+        
+        cancellable.cancel()
+    }
+    
     func testReduceWithDepender() {
         StoreCenter.shared.dependerMap = [:]
         let dependStore = Store<DependState>.box(.init())
