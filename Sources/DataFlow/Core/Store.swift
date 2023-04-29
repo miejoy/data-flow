@@ -360,7 +360,7 @@ public final class Store<State: StorableState>: ObservableObject {
                 isChange = true
             }
         }
-        StoreMonitor.shared.record(event: .beforeReduceActionOn(self, from))
+        StoreMonitor.shared.record(event: .beforeReduceActionOn(self, from, action))
         
         if let (dependers, reducer) = mapReducer[ObjectIdentifier(A.self)] {
             guard StoreCenter.shared.checkDeperders(dependers, newState, action) else {
@@ -370,9 +370,9 @@ public final class Store<State: StorableState>: ObservableObject {
             reducer(&newState, action)
             reducingAction = nil
         } else {
-            StoreMonitor.shared.record(event: .failedReduceActionOn(self, from))
+            StoreMonitor.shared.record(event: .failedReduceActionOn(self, from, action))
         }
-        StoreMonitor.shared.record(event: .afterReduceActionOn(self, from, newState: newState))
+        StoreMonitor.shared.record(event: .afterReduceActionOn(self, from, action, newState: newState))
         
         if isChange {
             updateStateWithNotice(newState)

@@ -12,9 +12,9 @@ import Combine
 /// 存储器变化事件
 public enum StoreEvent<State: StorableState> {
     case createStore(Store<State>)
-    case beforeReduceActionOn(Store<State>, Store<State>.ReduceFrom)
-    case afterReduceActionOn(Store<State>, Store<State>.ReduceFrom, newState: State)
-    case failedReduceActionOn(Store<State>, Store<State>.ReduceFrom)
+    case beforeReduceActionOn(Store<State>, Store<State>.ReduceFrom, _ action: Action)
+    case afterReduceActionOn(Store<State>, Store<State>.ReduceFrom, _ action: Action, newState: State)
+    case failedReduceActionOn(Store<State>, Store<State>.ReduceFrom, _ action: Action)
     case didUpdateStateOn(Store<State>, oldState: State)
     /// 在处理当前事件时，发现正在进行另一个事件处理
     case reduceInOtherReduce(Store<State>, curAction: Action, otherAction: Action)
