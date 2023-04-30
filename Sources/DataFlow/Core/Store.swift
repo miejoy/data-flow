@@ -370,7 +370,7 @@ public final class Store<State: StorableState>: ObservableObject {
             reducer(&newState, action)
             reducingAction = nil
         } else {
-            StoreMonitor.shared.record(event: .failedReduceActionOn(self, from, action))
+            StoreMonitor.shared.record(event: .reduceNotRegisterForActionOn(self, from, action))
         }
         StoreMonitor.shared.record(event: .afterReduceActionOn(self, from, action, newState: newState))
         
