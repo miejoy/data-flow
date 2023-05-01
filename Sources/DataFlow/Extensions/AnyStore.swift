@@ -12,10 +12,12 @@ import Foundation
 public final class AnyStore {
     public var stateType: StorableState.Type
     public var value : Any
+    public var stateId : String
     
     init<State: StorableState>(store: Store<State>) {
         self.stateType = State.self
         self.value = store
+        self.stateId = store.stateId
     }
 }
 

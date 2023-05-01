@@ -610,6 +610,19 @@ class StoreTests: XCTestCase {
         XCTAssertEqual(recurseStore.state.stateA, true)
         XCTAssertEqual(recurseStore.state.stateB, true)
     }
+    
+    func testAnyStore() {
+        let name = "name"
+        let normalStore = Store<NormalState>.box(.init(name: name))
+        
+        let anyStore = normalStore.eraseToAnyStore()
+        
+        XCTAssertEqual(anyStore.stateId, normalStore.stateId)
+        XCTAssertNotNil(anyStore.value as? Store<NormalState>)
+        XCTAssertEqual((anyStore.value as? Store<NormalState>)?.name, normalStore.name)
+        XCTAssertEqual((anyStore.value as? Store<NormalState>)?.name, name)
+        XCTAssertTrue(anyStore.stateType == NormalState.self)
+    }
 }
 
 enum AnyAction : Action {
