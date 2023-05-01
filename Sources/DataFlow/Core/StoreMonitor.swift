@@ -21,7 +21,7 @@ public enum StoreEvent<State: StorableState> {
     /// 在处理当前事件时，发现正在进行另一个事件处理
     case reduceInOtherReduce(Store<State>, curAction: Action, otherAction: Action)
     case cyclicObserve(from: Store<State>, to: AnyStore)
-    case destoryStore(Store<State>)
+    case destroyStore(Store<State>)
     case fatalError(String)
 }
 

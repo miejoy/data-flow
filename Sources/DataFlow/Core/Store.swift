@@ -434,7 +434,7 @@ public final class Store<State: StorableState>: ObservableObject {
     }
     
     deinit {
-        StoreMonitor.shared.record(event: .destoryStore(self))
+        StoreMonitor.shared.record(event: .destroyStore(self))
         self.setCancellable.forEach { $0.cancel() }
         self.setCancellable.removeAll()
         self.destroyCallback?(self._state)
