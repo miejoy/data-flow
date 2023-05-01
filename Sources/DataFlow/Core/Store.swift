@@ -55,6 +55,7 @@ public final class Store<State: StorableState>: ObservableObject {
             _state
         }
         set {
+            StoreMonitor.shared.record(event: .willDirectUpdateStateOn(self, newValue))
             if StoreMonitor.shared.useStrictMode {
                 StoreMonitor.shared.fatalError("Never update state directly! Use send/dispatch action instead")
             }
@@ -123,6 +124,7 @@ public final class Store<State: StorableState>: ObservableObject {
             }
             var state = _state
             state[keyPath: keyPath] = newValue
+            StoreMonitor.shared.record(event: .willDirectUpdateStateValueOn(self, keyPath, newValue))
             updateStateWithNotice(state, on: keyPath)
         }
     }
@@ -138,6 +140,7 @@ public final class Store<State: StorableState>: ObservableObject {
             }
             var state = _state
             state[keyPath: keyPath] = newValue
+            StoreMonitor.shared.record(event: .willDirectUpdateStateValueOn(self, keyPath, newValue))
             updateStateWithNotice(state, on: keyPath)
         }
     }

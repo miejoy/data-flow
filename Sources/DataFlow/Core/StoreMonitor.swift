@@ -15,6 +15,8 @@ public enum StoreEvent<State: StorableState> {
     case beforeReduceActionOn(Store<State>, Store<State>.ReduceFrom, _ action: Action)
     case afterReduceActionOn(Store<State>, Store<State>.ReduceFrom, _ action: Action, newState: State)
     case reduceNotRegisterForActionOn(Store<State>, Store<State>.ReduceFrom, _ action: Action)
+    case willDirectUpdateStateOn(Store<State>, _ newState: State)
+    case willDirectUpdateStateValueOn(Store<State>, _ keyPath: PartialKeyPath<State>, _ newValue: Any)
     case didUpdateStateOn(Store<State>, oldState: State)
     /// 在处理当前事件时，发现正在进行另一个事件处理
     case reduceInOtherReduce(Store<State>, curAction: Action, otherAction: Action)
