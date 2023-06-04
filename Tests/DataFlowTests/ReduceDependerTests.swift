@@ -7,7 +7,6 @@
 
 import XCTest
 @testable import DataFlow
-import SwiftUI
 
 class ReduceDependerTests: XCTestCase {
     

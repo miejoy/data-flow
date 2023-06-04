@@ -73,7 +73,7 @@ dependencies: [
     struct NormalView: View {
 
         @ObservedObject var normalStore = Store<NormalState>.box(NormalState())
-
+    
         var body: some View {
             Text(normalStore.name)
         }
@@ -102,10 +102,10 @@ SharableState can be used cross all views
 
     struct NormalSharedView: View {
 
-        @SharedState var normalState: NormalSharedState
-
+        @ObservedObject var normalStore: Store<NormalSharedState> = .shared
+        
         var body: some View {
-            Text(normalState.name)
+            Text(normalStore.name)
         }
     }
     ```
@@ -155,14 +155,13 @@ SharableState can be used cross all views
     import SwiftUI
 
     struct NormalSharedView: View {
-
-        @SharedState var normalState: NormalSharedState
-
+        @ObservedObject var normalStore: Store<NormalSharedState> = .shared
+        
         var body: some View {
             VStack {
-                Text(normalState.name)
+                Text(normalStore.name)
                 Button("Button") {
-                    $normalState.send(action: .userClick)
+                    normalStore.send(action: .userClick)
                 }
             }
         }

@@ -71,7 +71,6 @@ import DataFlow
 import SwiftUI
 
 struct NormalView: View {
-    
     @ObservedObject var normalStore = Store<NormalState>.box(NormalState())
     
     var body: some View {
@@ -101,7 +100,6 @@ import DataFlow
 import SwiftUI
 
 struct NormalSharedView: View {
-    
     @ObservedObject var normalStore: Store<NormalSharedState> = .shared
     
     var body: some View {
@@ -134,7 +132,6 @@ extension NormalSharedState : ActionBindable {
 
 ```swift
 extension NormalSharedState : ReducerLoadableState {
-
     static func loadReducers(on store: Store<NormalSharedState>) {
         store.registerDefault { (state, action) in
             var state = state
@@ -155,14 +152,13 @@ import DataFlow
 import SwiftUI
 
 struct NormalSharedView: View {
-    
-    @SharedState var normalState: NormalSharedState
+    @ObservedObject var normalStore: Store<NormalSharedState> = .shared
     
     var body: some View {
         VStack {
-            Text(normalState.name)
+            Text(normalStore.name)
             Button("Button") {
-                $normalState.send(action: .userClick)
+                normalStore.send(action: .userClick)
             }
         }
     }

@@ -34,6 +34,8 @@ extension Store where State : SharableState {
             return store
         }
         let store = self.init()
+        s_mapSharedStore[key] = store
+        
         // 判断 upStore 是否添加了当前的状态
         if !(State.UpState.self is Never.Type) {
             let upStore = Store<State.UpState>.shared
@@ -46,8 +48,6 @@ extension Store where State : SharableState {
             }
             upStore.add(subStore: store)
         }
-        
-        s_mapSharedStore[key] = store
         return store
     }
     
