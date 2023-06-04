@@ -59,7 +59,7 @@ public final class Store<State: StorableState>: ObservableObject {
             if StoreMonitor.shared.useStrictMode {
                 StoreMonitor.shared.fatalError("Never update state directly! Use send/dispatch action instead")
             }
-            updateStateWithNotice(newValue)
+            updateStateWithNotify(newValue)
         }
     }
     /// 实际保存的状态，仅可内部调用
@@ -75,7 +75,7 @@ public final class Store<State: StorableState>: ObservableObject {
     // 当前正在处理的 action
     var reducingAction: Action? = nil
     // 如果存在处理中的 action，这里会保存带处理的 action
-    var paddingActions: [(Action, ReduceFrom)] = []
+    var pendingActions: [(Action, ReduceFrom)] = []
     
     /// 存储处理器 [ObjectIdentifier(Action) : ( [dependerId], Reducer) ]
     var mapReducer : [ObjectIdentifier: ([ReduceDependerId], Reducer<State,Action>)] = [:]
@@ -125,7 +125,7 @@ public final class Store<State: StorableState>: ObservableObject {
             var state = _state
             state[keyPath: keyPath] = newValue
             StoreMonitor.shared.record(event: .willDirectUpdateStateValueOn(self, keyPath, newValue))
-            updateStateWithNotice(state, on: keyPath)
+            updateStateWithNotify(state, on: keyPath)
         }
     }
     
@@ -141,7 +141,7 @@ public final class Store<State: StorableState>: ObservableObject {
             var state = _state
             state[keyPath: keyPath] = newValue
             StoreMonitor.shared.record(event: .willDirectUpdateStateValueOn(self, keyPath, newValue))
-            updateStateWithNotice(state, on: keyPath)
+            updateStateWithNotify(state, on: keyPath)
         }
     }
     
@@ -353,7 +353,7 @@ public final class Store<State: StorableState>: ObservableObject {
     func reduce<A: Action>(action: A, from: ReduceFrom) {
         if let reducingAction = reducingAction {
             StoreMonitor.shared.record(event: .reduceInOtherReduce(self, curAction: action, otherAction: reducingAction))
-            paddingActions.insert((action, from), at: 0)
+            pendingActions.insert((action, from), at: 0)
             return
         }
         
@@ -366,7 +366,7 @@ public final class Store<State: StorableState>: ObservableObject {
         StoreMonitor.shared.record(event: .beforeReduceActionOn(self, from, action))
         
         if let (dependers, reducer) = mapReducer[ObjectIdentifier(A.self)] {
-            guard StoreCenter.shared.checkDeperders(dependers, newState, action) else {
+            guard StoreCenter.shared.checkDependency(dependers, newState, action) else {
                 return
             }
             reducingAction = action
@@ -378,10 +378,10 @@ public final class Store<State: StorableState>: ObservableObject {
         StoreMonitor.shared.record(event: .afterReduceActionOn(self, from, action, newState: newState))
         
         if isChange {
-            updateStateWithNotice(newState)
+            updateStateWithNotify(newState)
         }
         
-        if let (nextAction, nextFrom) = paddingActions.popLast() {
+        if let (nextAction, nextFrom) = pendingActions.popLast() {
             reduce(action: nextAction, from: nextFrom)
         }
     }
@@ -389,7 +389,7 @@ public final class Store<State: StorableState>: ObservableObject {
     // MARK: - Notify Chage
     
     /// 更新状态并通知监听着
-    func updateStateWithNotice(_ state: State, on keyPath: AnyKeyPath? = nil) {
+    func updateStateWithNotify(_ state: State, on keyPath: AnyKeyPath? = nil) {
         let oldState = _state
         _state = state
         StoreMonitor.shared.record(event: .didUpdateStateOn(self, oldState: oldState))
@@ -435,10 +435,7 @@ public final class Store<State: StorableState>: ObservableObject {
     
     deinit {
         StoreMonitor.shared.record(event: .destroyStore(self))
-        self.setCancellable.forEach { $0.cancel() }
-        self.setCancellable.removeAll()
         self.destroyCallback?(self._state)
-        self.destroyCallback = nil
     }
 }
 
@@ -452,13 +449,13 @@ extension Store where State : StateContainable {
     /// 添加子状态。注：SharableState 会自动调用
     ///
     /// - Parameter subStore: 被添加的子状态
-    public func append<SubState: AttachableState>(subStore: Store<SubState>) where SubState.UpState == State {
+    public func add<SubState: AttachableState>(subStore: Store<SubState>) where SubState.UpState == State {
         self._state.updateSubState(state: subStore.state)
-        // 添加 UpStore 绑定
+        // 添加当前 store（即 subStore 对应 UpStore）对 subStore 的监听
         self.observe(store: subStore) { [weak self] new, _ in
             self?.state.updateSubState(state: new)
         }
-        // 子 store 销毁时，需要清空上级 store 保存的状态
+        // subStore 销毁时，需要清空上级 store 保存的状态
         subStore.setDestroyCallback { [weak self] state in
             self?.state.subStates.removeValue(forKey: state.stateId)
         }

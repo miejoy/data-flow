@@ -9,7 +9,7 @@
 import Combine
 import SwiftUI
 
-/// 可共享的状态
+/// 可共享的状态（这里隐式限制了 SharableState: StateContainable）
 public protocol SharableState: AttachableState, InitializableState where UpState: SharableState {
     associatedtype UpState = AppState
 }
@@ -71,7 +71,7 @@ extension Store where State : SharableState {
                     "exist State[\(String(describing: type(of: existState)))] with same stateId!"
                 )
             }
-            upStore.append(subStore: store)
+            upStore.add(subStore: store)
         }
         
         s_mapSharedStore[key] = store

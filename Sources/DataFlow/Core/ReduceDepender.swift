@@ -23,7 +23,7 @@ public protocol ReduceDepender: AnyObject {
     /// 依赖者ID
     static var dependerId: ReduceDependerId { get }
     /// 判断是否可以继续处理对应事件
-    func canReduce(_ state: StorableState, _ action: Action) -> Bool
+    func canContinueReduce(_ state: StorableState, _ action: Action) -> Bool
 }
 
 extension ReduceDepender {

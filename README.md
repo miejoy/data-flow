@@ -29,8 +29,8 @@ DataFlow 是自定义 RSV(Resource & State & View) 设计模式中 State 层的�
 
 - 基础协议
   - StorableState: 可存储的状态，这也是最基础的状态协议
-  - InitializableState: 可直接初始化的状态
-  - StateContainable: 可容纳子状态的状态
+  - InitializableState: 可直接无参数初始化的状态
+  - StateContainable: 可容纳子状态的状态，实际定义未继承 StorableState
   - AttachableState: 可附加于其他状态的状态
   - ReducerLoadableState: 可自动加载处理器的状态
 

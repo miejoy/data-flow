@@ -156,7 +156,7 @@ struct MultiDependState: StorableState, ReducerLoadableState, ActionBindable {
 
 class NormalDepender: ReduceDepender {
     var getCall: Bool = false
-    func canReduce(_ state: StorableState, _ action: Action) -> Bool {
+    func canContinueReduce(_ state: StorableState, _ action: Action) -> Bool {
         getCall.toggle()
         return getCall
     }
@@ -164,7 +164,7 @@ class NormalDepender: ReduceDepender {
 
 class SecondDepender: ReduceDepender {
     var getCall: Bool = false
-    func canReduce(_ state: StorableState, _ action: Action) -> Bool {
+    func canContinueReduce(_ state: StorableState, _ action: Action) -> Bool {
         getCall.toggle()
         return getCall
     }

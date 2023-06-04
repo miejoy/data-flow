@@ -43,7 +43,7 @@ class StoreTests: XCTestCase {
         XCTAssertNil(saveSubStateBefore)
         
         let subStore = Store<ContainSubState>.box(ContainSubState())
-        containStore.append(subStore: subStore)
+        containStore.add(subStore: subStore)
         
         let saveSubStateAfter = containStore.state.subStates[subStore.state.stateId]
         XCTAssertNotNil(saveSubStateAfter)
@@ -451,7 +451,7 @@ class StoreTests: XCTestCase {
         topStore.observe(store: middleStore) { new,old in }
         XCTAssert(!oberver.cyclicObserveCall)
         
-        middleStore.append(subStore: bottomStore)
+        middleStore.add(subStore: bottomStore)
         middleStore.observe(store: otherStore) { new, old in }
         XCTAssert(!oberver.cyclicObserveCall)
         isTopObserverBottom = Store<NormalState>.isToObserveFrom(toId: ObjectIdentifier(topStore), fromId: ObjectIdentifier(bottomStore))
@@ -512,7 +512,7 @@ class StoreTests: XCTestCase {
         let upStore : Store<ContainState> = .init(state: ContainState())
         var subStore : Store<ContainSubState>? = .init(state: ContainSubState())
         
-        upStore.append(subStore: subStore!)
+        upStore.add(subStore: subStore!)
         
         let subStateId = subStore!.state.stateId
         XCTAssertNotNil(upStore.state.subStates[subStateId])
