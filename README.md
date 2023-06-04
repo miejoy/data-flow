@@ -2,7 +2,7 @@
 
 > [English Version](README-EN.md)
 
-DataFlow 定义了 App 中数据应该如何存储、传递和处理。该模块定义了几种基础类型和协议供外部使用，用户可以很方便的使用模块提供的协议、方法，快速并清晰的构造 App 内的数据流。这里定义的状态 State 可以非常方便的在 SwfitUI 中使用，并能在数据变更时自动更新界面
+DataFlow 定义了 App 中数据应该如何存储、传递和处理。该模块定义了几种基础类型和协议供外部使用，用户可以很方便的使用模块提供的协议、方法，快速并清晰的构造 App 内的数据流。这里定义的状态 State 可以非常方便的在流式布局的 UI 框架中使用（例如 SwfitUI），并能在数据变更时自动通知界面
 
 DataFlow 是自定义 RSV(Resource & State & View) 设计模式中 State 层的基础模块，负责给 View 提供数据支持和交互支持，并结合 Resource 层加载各种资源，包括设备资源、网络资源等
 
@@ -102,10 +102,10 @@ import SwiftUI
 
 struct NormalSharedView: View {
     
-    @SharedState var normalState: NormalSharedState
+    @ObservedObject var normalStore: Store<NormalSharedState> = .shared
     
     var body: some View {
-        Text(normalState.name)
+        Text(normalStore.name)
     }
 }
 ```

@@ -6,7 +6,6 @@
 //
 
 import XCTest
-import SwiftUI
 @testable import DataFlow
 
 class SharedStateTests: XCTestCase {
@@ -43,34 +42,7 @@ class SharedStateTests: XCTestCase {
         XCTAssert(shared === shared1)
         XCTAssert(shared1 === saved1)
     }
-    
-    func testNormalSharedView() {
         
-        s_mapSharedStore.removeAll()
-        let view = NormalSharedView()
-        XCTAssertEqual(view.normalState.name, "")
-        XCTAssertEqual(Store<NormalSharedState>.shared.name, "")
-        
-        _ = view.body
-        let content = "content"
-        view.normalState.name = content
-        XCTAssertEqual(view.normalState.name, content)
-        XCTAssertEqual(Store<NormalSharedState>.shared.name, content)
-    }
-    
-    func testShareStore() {
-        s_mapSharedStore.removeAll()
-        let view = SharedStateTestView()
-        XCTAssertEqual(view.testState.content, "")
-        XCTAssertEqual(Store<TestState>.shared.content, "")
-        
-        _ = view.body
-        let content = "content"
-        view.$testState.send(action: .changeContent(content))
-        XCTAssertEqual(view.testState.content, content)
-        XCTAssertEqual(Store<TestState>.shared.content, content)
-    }
-    
     func testFullShareStore() {
         s_mapSharedStore.removeAll()
         fullSharedStateReducerCall = false
@@ -107,20 +79,6 @@ class SharedStateTests: XCTestCase {
         XCTAssert(oberver.duplicateFatalErrorCall)
         
         cancellable.cancel()
-    }
-}
-
-struct SharedStateTestView: View {
-    
-    @SharedState var testState: TestState
-    
-    var body: some View {
-        VStack {
-            Text(testState.content)
-            Button("Random Text") {
-                $testState.send(action: .changeContent(String(Int.random(in: 100...999))))
-            }
-        }
     }
 }
 
@@ -170,20 +128,6 @@ struct NormalSharedState : SharableState {
 
 extension NormalSharedState : ActionBindable {
     typealias BindAction = NormalAction
-}
-
-struct NormalSharedView: View {
-    
-    @SharedState var normalState: NormalSharedState
-    
-    var body: some View {
-        VStack {
-            Text(normalState.name)
-            Button("Button") {
-                normalState.name = String(Int.random(in: 100...999))
-            }
-        }
-    }
 }
 
 var sharedReducerStateIsLoad = false

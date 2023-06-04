@@ -7,7 +7,6 @@
 //
 
 import Combine
-import SwiftUI
 
 /// 可共享的状态（这里隐式限制了 SharableState: StateContainable）
 public protocol SharableState: AttachableState, InitializableState where UpState: SharableState {
@@ -18,32 +17,6 @@ public protocol FullSharableState: SharableState, ReducerLoadableState, ActionBi
 
 extension Never: SharableState {
     public typealias UpState = Never
-}
-
-
-/// 共享状态包装器
-@propertyWrapper
-public struct SharedState<State: SharableState> : DynamicProperty {
-    
-    @ObservedObject private var store: Store<State>
-    
-    public init() {
-        store = .shared
-    }
-    
-    public var wrappedValue: State {
-        get {
-            store.state
-        }
-        
-        nonmutating set {
-            store.state = newValue
-        }
-    }
-    
-    public var projectedValue: Store<State> {
-        store
-    }
 }
 
 // MARK: - Extension Store
