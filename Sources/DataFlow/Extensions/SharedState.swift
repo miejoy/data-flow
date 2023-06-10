@@ -8,7 +8,7 @@
 
 import Combine
 
-/// 可共享的状态（这里隐式限制了 SharableState: StateContainable）
+/// 可共享的状态
 public protocol SharableState: AttachableState, InitializableState where UpState: SharableState {
     associatedtype UpState = AppState
 }

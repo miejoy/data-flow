@@ -28,16 +28,6 @@ public final class Store<State: StorableState>: ObservableObject {
         case apply
         case dispatch
     }
-    
-    /// 状态监听者
-    struct StateObserver<State:StorableState> {
-        let observerId: Int
-        let callback: Store<State>.StateChangeCallback
-        
-        func run(_ newState: State, _ oldState: State) {
-            callback(newState, oldState)
-        }
-    }
 
     /// 状态值监听者
     struct StateValueObserver {
@@ -436,6 +426,18 @@ public final class Store<State: StorableState>: ObservableObject {
     deinit {
         StoreMonitor.shared.record(event: .destroyStore(self))
         self.destroyCallback?(self._state)
+    }
+}
+
+// MARK: - StateObserver
+
+/// 状态监听者
+struct StateObserver<State:StorableState> {
+    let observerId: Int
+    let callback: Store<State>.StateChangeCallback
+    
+    func run(_ newState: State, _ oldState: State) {
+        callback(newState, oldState)
     }
 }
 
