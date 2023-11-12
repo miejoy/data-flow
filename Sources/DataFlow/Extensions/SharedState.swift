@@ -7,6 +7,7 @@
 //
 
 import Combine
+import Foundation
 
 /// 可共享的状态
 public protocol SharableState: AttachableState, InitializableState where UpState: SharableState {
@@ -23,6 +24,7 @@ extension Never: SharableState {
 
 /// 保存所有的共享状态，ObjectIdentifier 为 SharableState 类型的唯一值
 var s_mapSharedStore : [ObjectIdentifier:Any] = [:]
+let lock = DispatchQueue(label: "data-flow.shared.lock")
 
 /// 可共享的状态的状态
 extension Store where State : SharableState {
@@ -30,11 +32,19 @@ extension Store where State : SharableState {
     /// 私有共享状态存储器创建
     static var _shared : Store<State> {
         let key = ObjectIdentifier(State.self)
-        if let store = s_mapSharedStore[key] as? Store<State> {
+        var existOne: Bool = false
+        let store: Store<State> = lock.sync {
+            if let theStore = s_mapSharedStore[key] as? Store<State> {
+                existOne = true
+                return theStore
+            }
+            let theStore = self.init()
+            s_mapSharedStore[key] = theStore
+            return theStore
+        }
+        if existOne {
             return store
         }
-        let store = self.init()
-        s_mapSharedStore[key] = store
         
         // 判断 upStore 是否添加了当前的状态
         if !(State.UpState.self is Never.Type) {
