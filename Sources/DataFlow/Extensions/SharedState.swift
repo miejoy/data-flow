@@ -24,7 +24,7 @@ extension Never: SharableState {
 
 /// 保存所有的共享状态，ObjectIdentifier 为 SharableState 类型的唯一值
 var s_mapSharedStore : [ObjectIdentifier:Any] = [:]
-let lock = DispatchQueue(label: "data-flow.shared.lock")
+let s_sharedStoreLock = DispatchQueue(label: "data-flow.shared.lock")
 
 /// 可共享的状态的状态
 extension Store where State : SharableState {
@@ -33,7 +33,7 @@ extension Store where State : SharableState {
     static var _shared : Store<State> {
         let key = ObjectIdentifier(State.self)
         var existOne: Bool = false
-        let store: Store<State> = lock.sync {
+        let store: Store<State> = s_sharedStoreLock.sync {
             if let theStore = s_mapSharedStore[key] as? Store<State> {
                 existOne = true
                 return theStore
