@@ -13,6 +13,7 @@ public final class StoreCenter {
     var dependerMap: [ReduceDependerId: ReduceDepender] = [:]
     
     public func registeReduceDepender<D: ReduceDepender>(_ depender: D) {
+        assert(Thread.isMainThread, "Should call on main thread")
         if dependerMap[D.dependerId] != nil {
             StoreMonitor.shared.fatalError("Duplicate registration of reduce depender '\(D.dependerId)'")
         }

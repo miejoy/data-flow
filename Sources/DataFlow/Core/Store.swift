@@ -142,6 +142,7 @@ public final class Store<State: StorableState>: ObservableObject {
     ///
     /// - Parameter reducer: 注册的处理方法
     public func register<A:Action>(dependers: [ReduceDependerId] = [], reducer: @escaping Reducer<State,A>) {
+        assert(Thread.isMainThread, "Should call on main thread")
         self.mapReducer[ObjectIdentifier(A.self)] = (dependers, { state, action in
             if let specificAction = action as? A {
                 reducer(&state, specificAction)
@@ -157,6 +158,7 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Warning: 这里很容易出现循环观察的情况，需要自行考虑清楚，如果无法判断，请使用 observe(store:) 自动判断
     /// - Parameter callback: 当前状态变化时的回调
     public func addObserver(callback: @escaping StateChangeCallback) -> AnyCancellable {
+        assert(Thread.isMainThread, "Should call on main thread")
         generateObserverId += 1
         let observerId = generateObserverId
         arrObservers.append(StateObserver(observerId: observerId, callback: callback))
@@ -172,6 +174,7 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Parameter keyPath: 对应值的 keyPath
     /// - Parameter callback: 对应值的变化时的回调
     public func addObserver<T: Equatable>(of keyPath: KeyPath<State, T>, callback: @escaping (_ new: T, _ old: T) -> Void) -> AnyCancellable {
+        assert(Thread.isMainThread, "Should call on main thread")
         let callback: StateValueChangeCallback = { (new, old) in
             guard let new = new as? T,
                   let old = old as? T else {
@@ -207,6 +210,7 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Parameter store: 被观察的存储器
     /// - Parameter callback: 被观察的存储器状态变化时的回调
     public func observe<S:StorableState>(store: Store<S>, callback: @escaping (_ new: S, _ old: S) -> Void) {
+        assert(Thread.isMainThread, "Should call on main thread")
         // 添加循环观察判断
         Self.recordObserve(from: self, to: store)
         let innerCancellable = store.addObserver { new, old in
@@ -226,6 +230,7 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Parameter store: 被观察的存储器
     /// - Parameter callback: 被观察的存储器状态变化时的回调
     public func observe<S:StorableState, A:Action>(store: Store<S>, callback: @escaping (_ new: S, _ old: S) -> A) {
+        assert(Thread.isMainThread, "Should call on main thread")
         // 添加循环观察判断
         Self.recordObserve(from: self, to: store)
         let innerCancellable = store.addObserver { [weak self] new, old in
@@ -247,6 +252,7 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Parameter keyPath: 被观察对应值的 keyPath
     /// - Parameter callback: 被观察对应值的变化时调用该回调
     public func observe<S:StorableState, T:Equatable>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T) -> Void) {
+        assert(Thread.isMainThread, "Should call on main thread")
         store.addObserver(of: keyPath) { new, old in
             callback(new, old)
         }
@@ -260,6 +266,7 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Parameter keyPath: 被观察对应值的 keyPath
     /// - Parameter callback: 被观察对应值的变化时调用该回调生成可应用的事件
     public func observe<S:StorableState, T:Equatable, A:Action>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T) -> A) {
+        assert(Thread.isMainThread, "Should call on main thread")
         store.addObserver(of: keyPath) { [weak self] new, old in
             let action = callback(new, old)
             self?.apply(action: action)
@@ -315,6 +322,7 @@ public final class Store<State: StorableState>: ObservableObject {
     ///
     /// - Parameter action: 需要执行的事件
     public func send<A:Action>(action : A) {
+        assert(Thread.isMainThread, "Should call on main thread")
         reduce(action: action, from: .send)
     }
     
@@ -322,6 +330,7 @@ public final class Store<State: StorableState>: ObservableObject {
     ///
     /// - Parameter action: 需要应用的事件
     public func apply<A:Action>(action : A) {
+        assert(Thread.isMainThread, "Should call on main thread")
         reduce(action: action, from: .apply)
     }
     
@@ -452,6 +461,7 @@ extension Store where State : StateContainable {
     ///
     /// - Parameter subStore: 被添加的子状态
     public func add<SubState: AttachableState>(subStore: Store<SubState>) where SubState.UpState == State {
+        assert(Thread.isMainThread, "Should call on main thread")
         self._state.updateSubState(state: subStore.state)
         // 添加当前 store（即 subStore 对应 UpStore）对 subStore 的监听
         self.observe(store: subStore) { [weak self] new, _ in

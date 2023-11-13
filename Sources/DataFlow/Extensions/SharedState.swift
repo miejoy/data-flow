@@ -49,14 +49,24 @@ extension Store where State : SharableState {
         // 判断 upStore 是否添加了当前的状态
         if !(State.UpState.self is Never.Type) {
             let upStore = Store<State.UpState>.shared
-            if let existState = upStore.subStates[store.state.stateId] {
-                StoreMonitor.shared.fatalError(
-                    "Attach State[\(String(describing: State.self))] to UpState[\(String(describing: State.UpState.self))] " +
-                    "with stateId[\(store.state.stateId)] failed: " +
-                    "exist State[\(String(describing: type(of: existState)))] with same stateId!"
-                )
+            let attachStoreBlock = {
+                // state 操作必须在主线程
+                if let existState = upStore.subStates[store.state.stateId] {
+                    StoreMonitor.shared.fatalError(
+                        "Attach State[\(String(describing: State.self))] to UpState[\(String(describing: State.UpState.self))] " +
+                        "with stateId[\(store.state.stateId)] failed: " +
+                        "exist State[\(String(describing: type(of: existState)))] with same stateId!"
+                    )
+                }
+                upStore.add(subStore: store)
             }
-            upStore.add(subStore: store)
+            if Thread.isMainThread {
+                attachStoreBlock()
+            } else {
+                DispatchQueue.main.async {
+                    attachStoreBlock()
+                }
+            }
         }
         return store
     }
