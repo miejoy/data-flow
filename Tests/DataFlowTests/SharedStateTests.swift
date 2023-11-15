@@ -80,6 +80,34 @@ class SharedStateTests: XCTestCase {
         
         cancellable.cancel()
     }
+    
+    func testCreateSharedStoreOnMultiThread() {
+        s_mapSharedStore.removeAll()
+        
+        var expectations: [XCTestExpectation] = []
+        var count: Int = 0
+        
+        (0...5).forEach { _ in
+            let expectation = expectation(description: "This should complete")
+            expectations.append(expectation)
+            DispatchQueue.global().async {
+                if (s_mapSharedStore[ObjectIdentifier(MultiThreadSharedState.self)] == nil) {
+                    _ = Store<MultiThreadSharedState>.shared
+                    
+                    XCTAssertNotNil(s_mapSharedStore[ObjectIdentifier(MultiThreadSharedState.self)])
+                    count += 1
+                }
+                expectation.fulfill()
+            }
+        }
+        
+        XCTAssertNil(s_mapSharedStore[ObjectIdentifier(MultiThreadSharedState.self)])
+        
+        wait(for: expectations, timeout: 5)
+        
+        XCTAssertNotNil(s_mapSharedStore[ObjectIdentifier(MultiThreadSharedState.self)])
+        XCTAssertTrue(count >= 2) // 至少触发两次
+    }
 }
 
 enum TestAction: Action {
@@ -141,4 +169,8 @@ struct DuplicateSharedState : SharableState {
     var name: String = ""
     
     var stateId: String = "NormalSharedState"
+}
+
+struct MultiThreadSharedState : SharableState {
+    var name: String = ""
 }

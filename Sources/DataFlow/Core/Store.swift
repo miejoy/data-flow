@@ -86,8 +86,16 @@ public final class Store<State: StorableState>: ObservableObject {
     
     init(state: State) {
         self._state = state
-        State.didBoxed(on: self)
-        StoreMonitor.shared.record(event: .createStore(self))
+        if Thread.isMainThread {
+            State.didBoxed(on: self)
+            StoreMonitor.shared.record(event: .createStore(self))
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                State.didBoxed(on: self)
+                StoreMonitor.shared.record(event: .createStore(self))
+            }
+        }
     }
     
     // MARK: - Get & Set
@@ -433,8 +441,18 @@ public final class Store<State: StorableState>: ObservableObject {
     }
     
     deinit {
+        // 这里可能有线程问题
         StoreMonitor.shared.record(event: .destroyStore(self))
-        self.destroyCallback?(self._state)
+        if Thread.isMainThread {
+            self.destroyCallback?(self._state)
+        } else {
+            if let destroyCallback = self.destroyCallback {
+                let tmpState = self._state
+                DispatchQueue.main.async {
+                    destroyCallback(tmpState)
+                }
+            }
+        }
     }
 }
 
