@@ -86,16 +86,8 @@ public final class Store<State: StorableState>: ObservableObject {
     
     init(state: State) {
         self._state = state
-        if Thread.isMainThread {
-            State.didBoxed(on: self)
-            StoreMonitor.shared.record(event: .createStore(self))
-        } else {
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                State.didBoxed(on: self)
-                StoreMonitor.shared.record(event: .createStore(self))
-            }
-        }
+        State.didBoxed(on: self)
+        StoreMonitor.shared.record(event: .createStore(self))
     }
     
     // MARK: - Get & Set

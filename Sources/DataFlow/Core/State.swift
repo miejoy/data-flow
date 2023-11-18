@@ -6,12 +6,13 @@
 //  Copyright © 2020 Miejoy. All rights reserved.
 //  需要存储的状态，值类型，可以包含各种可存储数据
 
+import Foundation
 
 /// 可存储状态协议
 public protocol StorableState {
     /// 状态 ID，默认为结构体名称
     var stateId: String { get }
-    /// 被装载到 Store 时调用，尽量不要重写他，如果确实要重写，请注意 ReducerLoadableState 相关方法的调用
+    /// 被装载到 Store 时调用，尽量不要重写他，如果确实要重写，请注意 ReducerLoadableState 相关方法的调用。重新该方法需要自行关注线程问题
     static func didBoxed(on store: Store<some StorableState>)
 }
 
@@ -33,6 +34,7 @@ public protocol AttachableState: StorableState {
 
 /// 可自动加载处理器的状态
 public protocol ReducerLoadableState : StorableState {
+    /// 加载处理器，该方法只会在主线程调用。请不要直接调用，除非自己重写了 didBoxed(on:) 方法，需要调用时也确保在主线程调用
     static func loadReducers(on store: Store<Self>)
 }
 
@@ -60,7 +62,13 @@ extension StateContainable {
 extension ReducerLoadableState {
     public static func didBoxed(on store: Store<some StorableState>) {
         if let store = store as? Store<Self> {
-            loadReducers(on: store)
+            if Thread.isMainThread {
+                loadReducers(on: store)
+            } else {
+                DispatchQueue.main.async {
+                    loadReducers(on: store)
+                }
+            }
         }
     }
 }
