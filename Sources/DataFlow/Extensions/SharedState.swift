@@ -24,6 +24,7 @@ extension Never: SharableState {
 
 /// 保存所有的共享状态，ObjectIdentifier 为 SharableState 类型的唯一值
 var s_mapSharedStore : [ObjectIdentifier:Any] = [:]
+/// 共享 store 创建时使用的锁，目前没有移除共享 store 的方式，后面开发时移除共享 store 必须在主线程，并包上这个锁
 let s_sharedStoreLock = DispatchQueue(label: "data-flow.shared.lock")
 
 /// 可共享的状态的状态

@@ -87,11 +87,12 @@ class SharedStateTests: XCTestCase {
         var expectations: [XCTestExpectation] = []
         var count: Int = 0
         
-        (0...5).forEach { _ in
+        (0..<5).forEach { _ in
             let expectation = expectation(description: "This should complete")
             expectations.append(expectation)
             DispatchQueue.global().async {
                 if (s_mapSharedStore[ObjectIdentifier(MultiThreadSharedState.self)] == nil) {
+                    sleep(1)
                     _ = Store<MultiThreadSharedState>.shared
                     
                     XCTAssertNotNil(s_mapSharedStore[ObjectIdentifier(MultiThreadSharedState.self)])
