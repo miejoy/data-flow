@@ -26,7 +26,7 @@ extension Never: SharableState {
 var s_mapSharedStore : [ObjectIdentifier:Any] = [:]
 let s_sharedQueueLabel = "data-flow.shared.lock"
 /// 共享 store 创建时使用的锁，目前没有移除共享 store 的方式，后面开发时移除共享 store 必须在主线程，并包上这个锁
-let s_sharedStoreLock: DispatchQueue = .checkableQueue(lable: "data-flow.shared.lock")
+let s_sharedStoreLock: DispatchQueue = .checkableQueue(label: "data-flow.shared.lock")
 
 /// 可共享的状态的状态
 extension Store where State : SharableState {
@@ -85,7 +85,7 @@ extension DispatchQueue {
     static let checkDispatchSpecificKey: DispatchSpecificKey<String> = .init()
     
     /// 生成可检查的 Queue
-    public static func checkableQueue(lable: String) -> DispatchQueue {
+    public static func checkableQueue(label: String) -> DispatchQueue {
         let queue = DispatchQueue(label: s_sharedQueueLabel)
         queue.setSpecific(key: checkDispatchSpecificKey, value: queue.label)
         return queue
