@@ -109,6 +109,16 @@ class SharedStateTests: XCTestCase {
         XCTAssertNotNil(s_mapSharedStore[ObjectIdentifier(MultiThreadSharedState.self)])
         XCTAssertTrue(count >= 2) // 至少触发两次
     }
+    
+    func testCreateSharedStoreOnOtherSharedStoreCreation() {
+        s_mapSharedStore.removeAll()
+        
+        _ = Store<MultiThreadNestSharedState>.shared
+        
+        XCTAssertNotNil(s_mapSharedStore[ObjectIdentifier(MultiThreadNestSharedState.self)])
+        XCTAssertNotNil(s_mapSharedStore[ObjectIdentifier(MultiThreadSubSharedState.self)])
+        XCTAssertEqual(s_mapSharedStore.count, 3)
+    }
 }
 
 enum TestAction: Action {
@@ -173,5 +183,18 @@ struct DuplicateSharedState : SharableState {
 }
 
 struct MultiThreadSharedState : SharableState {
+    var name: String = ""
+}
+
+struct MultiThreadNestSharedState : SharableState {
+    var name: String = ""
+    
+    init() {
+        self.name = ""
+        _ = Store<MultiThreadSubSharedState>.shared
+    }
+}
+
+struct MultiThreadSubSharedState : SharableState {
     var name: String = ""
 }
