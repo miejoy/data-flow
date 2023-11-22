@@ -24,9 +24,6 @@ extension Never: SharableState {
 
 /// 保存所有的共享状态，ObjectIdentifier 为 SharableState 类型的唯一值
 var s_mapSharedStore : [ObjectIdentifier:Any] = [:]
-let s_sharedQueueLabel = "data-flow.shared.lock"
-/// 共享 store 创建时使用的锁，目前没有移除共享 store 的方式，后面开发时移除共享 store 必须在主线程，并包上这个锁
-let s_sharedStoreLock: DispatchQueue = .checkableQueue(label: "data-flow.shared.lock")
 
 /// 可共享的状态的状态
 extension Store where State : SharableState {
@@ -35,7 +32,7 @@ extension Store where State : SharableState {
     static var _shared : Store<State> {
         let key = ObjectIdentifier(State.self)
         var existOne: Bool = false
-        let store: Store<State> = s_sharedStoreLock.syncWithCheck {
+        let store: Store<State> = DispatchQueue.syncOnStoreQueue {
             if let theStore = s_mapSharedStore[key] as? Store<State> {
                 existOne = true
                 return theStore
@@ -83,19 +80,18 @@ extension Store where State : SharableState {
 extension DispatchQueue {
     
     static let checkDispatchSpecificKey: DispatchSpecificKey<String> = .init()
-    
-    /// 生成可检查的 Queue
-    public static func checkableQueue(label: String) -> DispatchQueue {
-        let queue = DispatchQueue(label: s_sharedQueueLabel)
+    /// 共享 store 创建时使用的锁，目前没有移除共享 store 的方式，后面开发时移除共享 store 必须在主线程，并包上这个锁
+    static let sharedStoreLock: DispatchQueue = {
+        let queue = DispatchQueue(label: "data-flow.shared.lock")
         queue.setSpecific(key: checkDispatchSpecificKey, value: queue.label)
         return queue
-    }
+    }()
     
     /// 检查是否允许在当前 queue 上，并同步执行代码
-    public func syncWithCheck<T>(execute work: () throws -> T) rethrows -> T {
-        if DispatchQueue.getSpecific(key: Self.checkDispatchSpecificKey) == label {
+    public static func syncOnStoreQueue<T>(execute work: () throws -> T) rethrows -> T {
+        if DispatchQueue.getSpecific(key: Self.checkDispatchSpecificKey) == Self.sharedStoreLock.label {
             return try work()
         }
-        return try self.sync(execute: work)
+        return try Self.sharedStoreLock.sync(execute: work)
     }
 }
