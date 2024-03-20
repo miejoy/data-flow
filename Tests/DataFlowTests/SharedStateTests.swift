@@ -21,9 +21,15 @@ class SharedStateTests: XCTestCase {
         
         let shared1 = Store<NormalSharedState>.shared
         let saved1 = s_mapSharedStore[ObjectIdentifier(NormalSharedState.self)] as! Store<NormalSharedState>
+        
+        let shared2 = NormalSharedState.sharedStore
+        let saved2 = s_mapSharedStore[ObjectIdentifier(NormalSharedState.self)] as! Store<NormalSharedState>
+        
     
         XCTAssert(shared === shared1)
         XCTAssert(shared1 === saved1)
+        XCTAssert(saved1 === shared2)
+        XCTAssert(shared2 === saved2)
     }
     
     // 可加载处理器状态的获取

@@ -76,6 +76,16 @@ extension Store where State : SharableState {
     }
 }
 
+// MARK: - Extension SharableState
+
+extension SharableState {
+    /// 共享存储器，所有地方都可共享
+    public static var sharedStore: Store<Self> {
+        Store<Self>.shared
+    }
+}
+
+// MARK: - DispatchQueue
 
 extension DispatchQueue {
     
