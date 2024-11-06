@@ -264,6 +264,34 @@ class StoreTests: XCTestCase {
         XCTAssert(!observeValueCall)
     }
     
+    func testStoreObserveValueWithState() {
+        let firstStore: Store<ObserveState> = Store<ObserveState>()
+        let secondStore = Store<ObserveState>()
+        
+        var newName = "text"
+        var observeValueCall = false
+        firstStore.observe(store: secondStore, of: \.name) { new, old, newState, oldState in
+            observeValueCall = true
+            XCTAssertEqual(new, newName)
+            XCTAssertEqual(newState.name, newName)
+            XCTAssertNotEqual(new, old)
+            XCTAssertNotEqual(newState.name, oldState.name)
+        }
+        
+        secondStore.name = newName
+        
+        XCTAssert(observeValueCall)
+        
+        observeValueCall = false
+        newName = "text1"
+        secondStore.name = newName
+        XCTAssert(observeValueCall)
+        
+        observeValueCall = false
+        secondStore.otherValue = "text"
+        XCTAssert(!observeValueCall)
+    }
+    
     func testStoreObserveWithAction() {
         let firstStore: Store<ObserveState> = Store<ObserveState>()
         let secondStore = Store<ObserveState>()
@@ -355,23 +383,60 @@ class StoreTests: XCTestCase {
         let normalStore: Store<NormalState> = Store<NormalState>()
         var reduceCall = false
         var observerCall = false
+        let oldName = normalStore.name
+        let newName = "new"
+        XCTAssertNotEqual(newName, oldName)
         let cancellable = normalStore.addObserver(of: \.name) { new, old in
             observerCall = true
         }
         normalStore.register { (state, action: AnyAction) in
-            state.name = "new"
+            state.name = newName
             reduceCall = true
         }
         
         normalStore.send(action: AnyAction.any)
         XCTAssertEqual(reduceCall, true)
         XCTAssertEqual(observerCall, true)
+        XCTAssertEqual(normalStore.name, newName)
         reduceCall = false
         observerCall = false
         cancellable.cancel()
         normalStore.send(action: AnyAction.any)
         XCTAssertEqual(reduceCall, true)
         XCTAssertEqual(observerCall, false)
+        XCTAssertEqual(normalStore.name, newName)
+    }
+    
+    func testNotifyWillCallWhileValueAndStateChange() {
+        let normalStore: Store<NormalState> = Store<NormalState>()
+        var reduceCall = false
+        var observerCall = false
+        let oldName = normalStore.name
+        let newName = "new"
+        XCTAssertNotEqual(newName, oldName)
+        let cancellable = normalStore.addObserver(of: \.name) { new, old, newState, oldState in
+            observerCall = true
+            XCTAssertNotEqual(new, old)
+            XCTAssertNotEqual(newState.name, oldState.name)
+            XCTAssertEqual(new, newName)
+            XCTAssertEqual(newState.name, newName)
+        }
+        normalStore.register { (state, action: AnyAction) in
+            state.name = newName
+            reduceCall = true
+        }
+        
+        normalStore.send(action: AnyAction.any)
+        XCTAssertEqual(reduceCall, true)
+        XCTAssertEqual(observerCall, true)
+        XCTAssertEqual(normalStore.name, newName)
+        reduceCall = false
+        observerCall = false
+        cancellable.cancel()
+        normalStore.send(action: AnyAction.any)
+        XCTAssertEqual(reduceCall, true)
+        XCTAssertEqual(observerCall, false)
+        XCTAssertEqual(normalStore.name, newName)
     }
     
     func testNotifyWillNeverCallWhileValueNotChange() {

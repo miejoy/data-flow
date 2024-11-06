@@ -45,8 +45,20 @@ extension Store where State : ActionBindable {
     /// - Parameter keyPath: 被观察对应值的 keyPath
     /// - Parameter callback: 被观察对应值的变化时调用该回调生成可应用的事件
     public func observeDefault<S:StorableState, T:Equatable>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T) -> State.BindAction) {
-        store.addObserver(of: keyPath) { [weak self] new, old in
-            let action = callback(new, old)
+        observeDefault(store: store, of: keyPath) { new, old, _, _ in
+            callback(new, old)
+        }
+    }
+    
+    /// 观察另一个存储器的状态中的某个值，调用回调会生成对于 Action，并自动应用
+    /// - Warning: 这里需要自行确保生成的 action 不会导致被观察到 store 变化
+    ///
+    /// - Parameter store: 被观察的存储器
+    /// - Parameter keyPath: 被观察对应值的 keyPath
+    /// - Parameter callback: 被观察对应值的变化时调用该回调生成可应用的事件
+    public func observeDefault<S:StorableState, T:Equatable>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T, _ newState: S, _ oldState: S) -> State.BindAction) {
+        store.addObserver(of: keyPath) { [weak self] new, old, newState, oldState in
+            let action = callback(new, old, newState, oldState)
             self?.apply(action: action)
         }
         .store(in: &setCancellable)
