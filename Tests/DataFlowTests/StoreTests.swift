@@ -687,6 +687,49 @@ class StoreTests: XCTestCase {
         XCTAssertEqual((anyStore.value as? Store<NormalState>)?.name, name)
         XCTAssertTrue(anyStore.stateType == NormalState.self)
     }
+    
+    func testStoreStorage() {
+        let normalStore = Store<NormalState>.box(.init(name: name))
+        
+        XCTAssertNil(normalStore[ViewId.self])
+        
+        // 测试普通设置
+        let newViewId = "NewViewId"
+        normalStore[ViewId.self] = newViewId
+        XCTAssertEqual(normalStore[ViewId.self], newViewId)
+        
+        // 测试读取默认值时设置
+        let defaultViewId = "DefaultViewId"
+        XCTAssertEqual(normalStore[ViewId.self, default: defaultViewId], newViewId)
+        
+        // 重置一下
+        normalStore[ViewId.self] = nil
+        XCTAssertNil(normalStore[ViewId.self])
+        
+        XCTAssertEqual(normalStore[ViewId.self, default: defaultViewId], defaultViewId)
+        XCTAssertEqual(normalStore[ViewId.self], defaultViewId)
+    }
+    
+    func testDefaultStoreStorage() {
+        let normalStore = Store<NormalState>.box(.init(name: name))
+        
+        let defaultViewId = "DefaultViewId"
+        // 首次读取
+        XCTAssertFalse(DefaultViewId.defaultValueCall)
+        XCTAssertEqual(normalStore[DefaultViewId.self], defaultViewId)
+        XCTAssertTrue(DefaultViewId.defaultValueCall)
+        
+        // 二次读取
+        DefaultViewId.defaultValueCall = false
+        XCTAssertEqual(normalStore[DefaultViewId.self], defaultViewId)
+        XCTAssertFalse(DefaultViewId.defaultValueCall)
+        
+        // 覆盖后读取
+        let newViewId = "NewViewId"
+        normalStore[DefaultViewId.self] = newViewId
+        XCTAssertEqual(normalStore[DefaultViewId.self], newViewId)
+        XCTAssertFalse(DefaultViewId.defaultValueCall)
+    }
 }
 
 enum AnyAction : Action {
@@ -812,3 +855,14 @@ struct RecurseReduceState: StorableState, ReducerLoadableState, ActionBindable {
     }
 }
 
+enum ViewId: StoreStorageKey { 
+    typealias Value = String
+}
+
+enum DefaultViewId: DefaultStoreStorageKey {
+    static var defaultValueCall: Bool = false
+    static var defaultValue: String {
+        defaultValueCall = true
+        return "DefaultViewId"
+    }
+}

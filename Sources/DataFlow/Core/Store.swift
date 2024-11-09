@@ -75,6 +75,10 @@ public final class Store<State: StorableState>: ObservableObject {
     var generateObserverId: Int = 0
     var setCancellable: Set<AnyCancellable> = []
     
+    /// 通用存储空间
+    var storage: StoreStorage = .init()
+    
+    // MARK: - Init
     
     /// 包装对应状态，生成临时存储器，不会被共享
     ///
