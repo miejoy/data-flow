@@ -57,11 +57,11 @@ extension Store where State : ActionBindable {
     /// - Parameter keyPath: 被观察对应值的 keyPath
     /// - Parameter callback: 被观察对应值的变化时调用该回调生成可应用的事件
     public func observeDefault<S:StorableState, T:Equatable>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T, _ newState: S, _ oldState: S) -> State.BindAction) {
-        store.addObserver(of: keyPath) { [weak self] new, old, newState, oldState in
+        let cancellable = store.addObserver(of: keyPath) { [weak self] new, old, newState, oldState in
             let action = callback(new, old, newState, oldState)
             self?.apply(action: action)
         }
-        .store(in: &setCancellable)
+        storeObserveCancellable(store: store, cancellable: cancellable, keyPath: keyPath)
     }
     
     /// 观察另一个存储器状态的变化，调用回调会生成对于 Action，并自动应用
@@ -71,11 +71,11 @@ extension Store where State : ActionBindable {
     public func observeDefault<S:StorableState>(store: Store<S>, callback: @escaping (_ new: S, _ old: S) -> State.BindAction) {
         // 添加循环观察判断
         Self.recordObserve(from: self, to: store)
-        store.addObserver { [weak self] new, old in
+        let cancellable = store.addObserver { [weak self] new, old in
             let action = callback(new, old)
             self?.apply(action: action)
         }
-        .store(in: &setCancellable)
+        storeObserveCancellable(store: store, cancellable: cancellable, keyPath: \S.self)
     }
     
     // MARK: - Action

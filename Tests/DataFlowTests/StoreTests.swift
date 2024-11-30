@@ -329,6 +329,103 @@ class StoreTests: XCTestCase {
         XCTAssert(actionCall)
     }
     
+    func testStoreObserveRepeat() {
+        StoreMonitor.shared.arrObservers = []
+        class Oberver: StoreMonitorOberver {
+            var repeatOberveCall = false
+            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
+                if case .fatalError(let message) = event,
+                   message.starts(with: "Repeat observe from ")
+                {
+                    repeatOberveCall = true
+                }
+            }
+        }
+        
+        let oberver = Oberver()
+        let cancellable = StoreMonitor.shared.addObserver(oberver)
+        
+        let firstStore: Store<ObserveState> = Store<ObserveState>()
+        let secondStore = Store<ObserveState>()
+        
+        firstStore.observe(store: secondStore) { _,_ in}
+        XCTAssert(!oberver.repeatOberveCall)
+        
+        firstStore.observe(store: secondStore) { _,_ in}
+        XCTAssert(oberver.repeatOberveCall)
+        
+        
+        oberver.repeatOberveCall = false
+        firstStore.observe(store: secondStore, of: \.name) { _,_ in}
+        XCTAssert(!oberver.repeatOberveCall)
+        
+        firstStore.observe(store: secondStore, of: \.name) { _,_ in}
+        XCTAssert(oberver.repeatOberveCall)
+        
+        cancellable.cancel()
+    }
+    
+    func testStoreUnobserve() {
+        let firstStore: Store<ObserveState> = Store<ObserveState>()
+        let secondStore = Store<ObserveState>()
+        
+        var observeStateCall = false
+        firstStore.observe(store: secondStore) { new, old in
+            observeStateCall = true
+        }
+        
+        var observeValueCall = false
+        firstStore.observe(store: secondStore, of: \.name) { new, old in
+            observeValueCall = true
+        }
+        
+        secondStore.name = "text"
+        
+        XCTAssert(observeStateCall)
+        XCTAssert(observeValueCall)
+        
+        observeStateCall = false
+        observeValueCall = false
+        firstStore.unobserve(store: secondStore)
+        secondStore.name = "text1"
+        XCTAssert(!observeStateCall)
+        XCTAssert(observeValueCall)
+        
+        observeStateCall = false
+        observeValueCall = false
+        firstStore.unobserve(store: secondStore, of: \.name)
+        secondStore.name = "text"
+        XCTAssert(!observeStateCall)
+        XCTAssert(!observeValueCall)
+    }
+    
+    func testStoreUnobserveAll() {
+        let firstStore: Store<ObserveState> = Store<ObserveState>()
+        let secondStore = Store<ObserveState>()
+        
+        var observeStateCall = false
+        firstStore.observe(store: secondStore) { new, old in
+            observeStateCall = true
+        }
+        
+        var observeValueCall = false
+        firstStore.observe(store: secondStore, of: \.name) { new, old in
+            observeValueCall = true
+        }
+        
+        secondStore.name = "text"
+        
+        XCTAssert(observeStateCall)
+        XCTAssert(observeValueCall)
+        
+        observeStateCall = false
+        observeValueCall = false
+        firstStore.unobserveAll(store: secondStore)
+        secondStore.name = "text1"
+        XCTAssert(!observeStateCall)
+        XCTAssert(!observeValueCall)
+    }
+        
     func testCancelObserverWhenDestory() {
         var firstStore: Store<NormalState>? = Store<NormalState>()
         let secondStore = Store<NormalState>()
@@ -531,8 +628,7 @@ class StoreTests: XCTestCase {
         XCTAssert(isBottomObserverTop)
         
         // 测试断开循环观察
-        middleStore.setCancellable.forEach { $0.cancel() }
-        middleStore.setCancellable.removeAll()
+        middleStore.mapCancellable.removeAll()
         isTopObserverBottom = Store<NormalState>.isToObserveFrom(toId: ObjectIdentifier(topStore), fromId: ObjectIdentifier(bottomStore))
         isBottomObserverTop =  Store<ContainSubState>.isToObserveFrom(toId: ObjectIdentifier(bottomStore), fromId: ObjectIdentifier(topStore))
         XCTAssert(!isTopObserverBottom)

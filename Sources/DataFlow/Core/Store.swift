@@ -71,9 +71,10 @@ public final class Store<State: StorableState>: ObservableObject {
     var mapReducer : [ObjectIdentifier: ([ReduceDependerId], Reducer<State,Action>)] = [:]
     var mapValueObservers : [AnyKeyPath: [StateValueObserver]] = [:]
     var arrObservers : [StateObserver<State>] = []
+    /// 保持自身监听其他 store 的 AnyCancellable
+    var mapCancellable : [ObjectIdentifier: [AnyKeyPath: AnyCancellable]] = [:]
     var destroyCallback : ((State) -> Void)? = nil
     var generateObserverId: Int = 0
-    var setCancellable: Set<AnyCancellable> = []
     
     /// 通用存储空间
     var storage: StoreStorage = .init()
@@ -232,11 +233,11 @@ public final class Store<State: StorableState>: ObservableObject {
         }
         let fromId = ObjectIdentifier(self)
         let toId = ObjectIdentifier(store)
-        AnyCancellable {
+        let cancellable = AnyCancellable {
             Self.removeObserve(fromId: fromId, toId: toId)
             innerCancellable.cancel()
         }
-        .store(in: &setCancellable)
+        storeObserveCancellable(store: store, cancellable: cancellable, keyPath: \S.self)
     }
     
     /// 观察另一个存储器状态的变化，调用回调会生成对于 Action，并自动应用
@@ -253,11 +254,11 @@ public final class Store<State: StorableState>: ObservableObject {
         }
         let fromId = ObjectIdentifier(self)
         let toId = ObjectIdentifier(store)
-        AnyCancellable {
+        let cancellable = AnyCancellable {
             Self.removeObserve(fromId: fromId, toId: toId)
             innerCancellable.cancel()
         }
-        .store(in: &setCancellable)
+        storeObserveCancellable(store: store, cancellable: cancellable, keyPath: \S.self)
     }
     
     /// 观察另一个存储器的状态中的某个值，对于值变化时会调用回调
@@ -278,10 +279,10 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Parameter callback: 被观察对应值的变化时调用该回调
     public func observe<S:StorableState, T:Equatable>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T, _ newState: S, _ oldState: S) -> Void) {
         assert(Thread.isMainThread, "Should call on main thread")
-        store.addObserver(of: keyPath) { new, old, newState, oldState in
+        let cancellable = store.addObserver(of: keyPath) { new, old, newState, oldState in
             callback(new, old, newState, oldState)
         }
-        .store(in: &setCancellable)
+        storeObserveCancellable(store: store, cancellable: cancellable, keyPath: keyPath)
     }
     
     /// 观察另一个存储器的状态中的某个值，调用回调会生成对于 Action，并自动应用
@@ -304,13 +305,48 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Parameter callback: 被观察对应值的变化时调用该回调生成可应用的事件
     public func observe<S:StorableState, T:Equatable, A:Action>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T, _ newState: S, _ oldState: S) -> A) {
         assert(Thread.isMainThread, "Should call on main thread")
-        store.addObserver(of: keyPath) { [weak self] new, old, newState, oldState in
+        let cancellable = store.addObserver(of: keyPath) { [weak self] new, old, newState, oldState in
             let action = callback(new, old, newState, oldState)
             self?.apply(action: action)
         }
-        .store(in: &setCancellable)
+        storeObserveCancellable(store: store, cancellable: cancellable, keyPath: keyPath)
     }
-        
+    
+    /// 取消观察另一个存储器的状态所有值
+    public func unobserveAll<S>(store: Store<S>) {
+        mapCancellable.removeValue(forKey: ObjectIdentifier(store))
+    }
+    
+    /// 取消观察另一个存储器的状态
+    public func unobserve<S>(store: Store<S>) {
+        unobserve(store: store, of: \S.self)
+    }
+    
+    /// 取消观察另一个存储器的状态对应值
+    public func unobserve<S>(store: Store<S>, of keyPath: PartialKeyPath<S>) {
+        let key = ObjectIdentifier(store)
+        guard var mapKeypathToCancellable = mapCancellable[key] else {
+            return
+        }
+        mapKeypathToCancellable.removeValue(forKey: keyPath)
+        if mapKeypathToCancellable.isEmpty {
+            mapCancellable.removeValue(forKey: key)
+        } else {
+            mapCancellable[key] = mapKeypathToCancellable
+        }
+    }
+    
+    /// 保存观察另一个存储器的 AnyCancellable
+    func storeObserveCancellable<S>(store: Store<S>, cancellable: AnyCancellable, keyPath: PartialKeyPath<S>) {
+        let key = ObjectIdentifier(store)
+        var mapKeypathToCancellable = mapCancellable[key] ?? [:]
+        if mapKeypathToCancellable[keyPath] != nil {
+            StoreMonitor.shared.fatalError("Repeat observe from \(self.state.stateId) to \(store.state.stateId) with keyPath: \(keyPath)")
+        }
+        mapKeypathToCancellable[keyPath] = cancellable
+        mapCancellable[key] = mapKeypathToCancellable
+    }
+    
     /// 记录 from store 观察 to store
     static func recordObserve<FS:StorableState, TS:StorableState>(from: Store<FS>, to: Store<TS>) {
         let fromId = ObjectIdentifier(from)
