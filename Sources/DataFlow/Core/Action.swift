@@ -44,7 +44,7 @@ extension Store where State : ActionBindable {
     /// - Parameter store: 被观察的存储器
     /// - Parameter keyPath: 被观察对应值的 keyPath
     /// - Parameter callback: 被观察对应值的变化时调用该回调生成可应用的事件
-    public func observeDefault<S:StorableState, T:Equatable>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T) -> State.BindAction) {
+    public func observeDefault<S:StorableState, T:Equatable>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T) -> State.BindAction?) {
         observeDefault(store: store, of: keyPath) { new, old, _, _ in
             callback(new, old)
         }
@@ -56,10 +56,11 @@ extension Store where State : ActionBindable {
     /// - Parameter store: 被观察的存储器
     /// - Parameter keyPath: 被观察对应值的 keyPath
     /// - Parameter callback: 被观察对应值的变化时调用该回调生成可应用的事件
-    public func observeDefault<S:StorableState, T:Equatable>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T, _ newState: S, _ oldState: S) -> State.BindAction) {
+    public func observeDefault<S:StorableState, T:Equatable>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T, _ newState: S, _ oldState: S) -> State.BindAction?) {
         let cancellable = store.addObserver(of: keyPath) { [weak self] new, old, newState, oldState in
-            let action = callback(new, old, newState, oldState)
-            self?.apply(action: action)
+            if let self = self, let action = callback(new, old, newState, oldState) {
+                self.apply(action: action)
+            }
         }
         storeObserveCancellable(store: store, cancellable: cancellable, keyPath: keyPath)
     }
@@ -68,12 +69,13 @@ extension Store where State : ActionBindable {
     ///
     /// - Parameter store: 被观察的存储器
     /// - Parameter callback: 被观察的存储器状态变化时的回调
-    public func observeDefault<S:StorableState>(store: Store<S>, callback: @escaping (_ new: S, _ old: S) -> State.BindAction) {
+    public func observeDefault<S:StorableState>(store: Store<S>, callback: @escaping (_ new: S, _ old: S) -> State.BindAction?) {
         // 添加循环观察判断
         Self.recordObserve(from: self, to: store)
         let cancellable = store.addObserver { [weak self] new, old in
-            let action = callback(new, old)
-            self?.apply(action: action)
+            if let self = self, let action = callback(new, old) {
+                self.apply(action: action)
+            }
         }
         storeObserveCancellable(store: store, cancellable: cancellable, keyPath: \S.self)
     }

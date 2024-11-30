@@ -244,13 +244,14 @@ public final class Store<State: StorableState>: ObservableObject {
     ///
     /// - Parameter store: 被观察的存储器
     /// - Parameter callback: 被观察的存储器状态变化时的回调
-    public func observe<S:StorableState, A:Action>(store: Store<S>, callback: @escaping (_ new: S, _ old: S) -> A) {
+    public func observe<S:StorableState, A:Action>(store: Store<S>, callback: @escaping (_ new: S, _ old: S) -> A?) {
         assert(Thread.isMainThread, "Should call on main thread")
         // 添加循环观察判断
         Self.recordObserve(from: self, to: store)
         let innerCancellable = store.addObserver { [weak self] new, old in
-            let action = callback(new, old)
-            self?.apply(action: action)
+            if let self = self, let action = callback(new, old) {
+                self.apply(action: action)
+            }
         }
         let fromId = ObjectIdentifier(self)
         let toId = ObjectIdentifier(store)
@@ -291,8 +292,8 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Parameter store: 被观察的存储器
     /// - Parameter keyPath: 被观察对应值的 keyPath
     /// - Parameter callback: 被观察对应值的变化时调用该回调生成可应用的事件
-    public func observe<S:StorableState, T:Equatable, A:Action>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T) -> A) {
-        observe(store: store, of: keyPath) { new, old, _, _ in
+    public func observe<S:StorableState, T:Equatable, A:Action>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T) -> A?) {
+        observe(store: store, of: keyPath) { (new, old, _, _) -> A? in
             callback(new, old)
         }
     }
@@ -303,11 +304,12 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Parameter store: 被观察的存储器
     /// - Parameter keyPath: 被观察对应值的 keyPath
     /// - Parameter callback: 被观察对应值的变化时调用该回调生成可应用的事件
-    public func observe<S:StorableState, T:Equatable, A:Action>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T, _ newState: S, _ oldState: S) -> A) {
+    public func observe<S:StorableState, T:Equatable, A:Action>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T, _ newState: S, _ oldState: S) -> A?) {
         assert(Thread.isMainThread, "Should call on main thread")
         let cancellable = store.addObserver(of: keyPath) { [weak self] new, old, newState, oldState in
-            let action = callback(new, old, newState, oldState)
-            self?.apply(action: action)
+            if let self = self, let action = callback(new, old, newState, oldState) {
+                self.apply(action: action)
+            }
         }
         storeObserveCancellable(store: store, cancellable: cancellable, keyPath: keyPath)
     }
