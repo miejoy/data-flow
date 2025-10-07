@@ -13,7 +13,7 @@ public struct StoreConfigKey<Value>: Hashable, CustomStringConvertible {
     let name: String
 
     /// 初始化配置 key
-    public init(_ name: String = "") {
+    public init(_ name: String) {
         self.name = name
     }
 
