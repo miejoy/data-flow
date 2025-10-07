@@ -84,6 +84,7 @@ public final class Store<State: StorableState>: ObservableObject {
     // MARK: - Init
     
     /// 包装对应状态，生成临时存储器，不会被共享
+    /// 注意：这里存在一个问题，SharableState 对应 Store 也可以通过这个创建，但是创建后的 Store 并不会共享
     ///
     /// - Parameter state: 需要包装的状态
     /// - Returns: 返回对应存储器
@@ -566,8 +567,16 @@ extension Store where State : StateContainable {
 
 /// 可直接初始化的状态
 extension Store where State : InitializableState {
-    /// 可直接初始化的状态，对于存储器也可以直接初始化
+    // 可直接初始化的状态，对应存储器也可以直接初始化
     public convenience init() {
         self.init(state: State())
+    }
+}
+
+extension Store where State: SharableState {
+    // 避免给 SharableState 也添加了 init 方法，SharableState 只能用 shared 方法初始化
+    @available(*, unavailable, message: "SharableState 不支持无参 init()")
+    public convenience init() {
+        fatalError("禁止调用")
     }
 }

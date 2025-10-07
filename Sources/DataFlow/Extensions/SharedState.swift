@@ -37,7 +37,7 @@ extension Store where State : SharableState {
                 existOne = true
                 return theStore
             }
-            let theStore = self.init()
+            let theStore = self.init(state: State())
             s_mapSharedStore[key] = theStore
             return theStore
         }
