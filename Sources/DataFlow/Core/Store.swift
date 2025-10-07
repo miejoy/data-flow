@@ -78,6 +78,8 @@ public final class Store<State: StorableState>: ObservableObject {
     
     /// 通用存储空间
     var storage: StoreStorage = .init()
+    /// 初始化配置
+    let initConfig: StoreConfig
     
     // MARK: - Init
     
@@ -85,12 +87,13 @@ public final class Store<State: StorableState>: ObservableObject {
     ///
     /// - Parameter state: 需要包装的状态
     /// - Returns: 返回对应存储器
-    public static func box(_ state: State) -> Self {
-        return self.init(state: state)
+    public static func box(_ state: State, configs: [StoreConfigPair] = []) -> Self {
+        return self.init(state: state, configs: configs)
     }
     
-    init(state: State) {
+    init(state: State, configs: [StoreConfigPair] = []) {
         self._state = state
+        self.initConfig = .init(configs)
         State.didBoxed(on: self)
         StoreMonitor.shared.record(event: .createStore(self))
     }

@@ -826,6 +826,18 @@ class StoreTests: XCTestCase {
         XCTAssertEqual(normalStore[DefaultViewId.self], newViewId)
         XCTAssertFalse(DefaultViewId.defaultValueCall)
     }
+    
+    func testGetStoreConfig() {
+        let configValue = "test123"
+        let normalStore = Store<NormalState>.box(.init(name: name), configs: [.make(.testConfig, configValue)])
+        XCTAssertEqual(normalStore[.testConfig], configValue)
+    }
+    
+    func testGetStoreConfigWithDefaultValue() {
+        let defaultConfigValue = "default123"
+        let normalStore = Store<NormalState>.box(.init(name: name))
+        XCTAssertEqual(normalStore[.testConfig, default: defaultConfigValue], defaultConfigValue)
+    }
 }
 
 enum AnyAction : Action {
@@ -961,4 +973,8 @@ enum DefaultViewId: DefaultStoreStorageKey {
         defaultValueCall = true
         return "DefaultViewId"
     }
+}
+
+extension StoreConfigKey where Value == String {
+    static let testConfig: StoreConfigKey<Value> = .init("textConfig")
 }
