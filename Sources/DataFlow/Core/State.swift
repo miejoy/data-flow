@@ -21,6 +21,9 @@ public protocol InitializableState {
     init()
 }
 
+/// 使用的可直接初始化的状态，这里与 InitializableState 唯一区别就是 UseInitializableState 会提供一个对应 Store 的 init 方法
+public protocol UseInitializableState: InitializableState {}
+
 /// 可容纳子状态的
 public protocol StateContainable {
     var subStates : [String:StorableState] { get set }

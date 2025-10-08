@@ -831,6 +831,8 @@ class StoreTests: XCTestCase {
         let configValue = "test123"
         let normalStore = Store<NormalState>.box(.init(name: name), configs: [.make(.testConfig, configValue)])
         XCTAssertEqual(normalStore[.testConfig], configValue)
+        XCTAssertEqual(StoreConfigKey<String>.testConfig.description, "TextConfig<String>")
+
     }
     
     func testGetStoreConfigWithDefaultValue() {
@@ -853,7 +855,7 @@ enum NestedAction: Action {
     case changeStateB
 }
 
-struct NormalState : StorableState, InitializableState {
+struct NormalState : StorableState, UseInitializableState {
     var name: String = ""
 }
 
@@ -865,7 +867,7 @@ struct ReducerState : StorableState, ReducerLoadableState {
 }
 
 var initReducerStateIsLoad = false
-struct InitReducerState : InitializableState, ReducerLoadableState {
+struct InitReducerState : UseInitializableState, ReducerLoadableState {
     static func loadReducers(on store: Store<InitReducerState>) {
         initReducerStateIsLoad = true
     }
@@ -890,16 +892,16 @@ struct SpecificState : StorableState, ActionBindable {
     typealias BindAction = SpecificAction
 }
 
-struct ObserveState: StorableState, InitializableState {
+struct ObserveState: StorableState, UseInitializableState {
     var name: String = ""
     var otherValue: String = ""
 }
 
-struct OptionalState: StorableState, InitializableState {
+struct OptionalState: StorableState, UseInitializableState {
     var name: String? = nil
 }
 
-struct SubscriptState : StorableState, InitializableState {
+struct SubscriptState : StorableState, UseInitializableState {
     var name: String = ""
     var normalState: NormalState = .init()
 }
@@ -976,5 +978,5 @@ enum DefaultViewId: DefaultStoreStorageKey {
 }
 
 extension StoreConfigKey where Value == String {
-    static let testConfig: StoreConfigKey<Value> = .init("textConfig")
+    static let testConfig: StoreConfigKey<Value> = .init("TextConfig")
 }

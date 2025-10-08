@@ -125,6 +125,31 @@ class SharedStateTests: XCTestCase {
         XCTAssertNotNil(s_mapSharedStore[ObjectIdentifier(MultiThreadSubSharedState.self)])
         XCTAssertEqual(s_mapSharedStore.count, 3)
     }
+    
+    func testUseBoxOnSharableState() {
+        StoreMonitor.shared.arrObservers = []
+        class Oberver: StoreMonitorOberver {
+            var duplicateFatalErrorCall = false
+            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
+                if case .fatalError(let message) = event,
+                    message == ("'SharableState' cann't use box() directly. " +
+                                "Use 'shared' instead or set 'useBoxOnShared' config to 'true'") {
+                    duplicateFatalErrorCall = true
+                }
+            }
+        }
+        let oberver = Oberver()
+        let cancellable = StoreMonitor.shared.addObserver(oberver)
+                
+        // 配置 useBoxOnShared，不会 fatalError
+        _ = Store<NormalSharedState>.box(.init(), configs: [.make(.useBoxOnShared, true)])
+        XCTAssert(!oberver.duplicateFatalErrorCall)
+        
+        _ = Store<NormalSharedState>.box()
+        XCTAssert(oberver.duplicateFatalErrorCall)
+        
+        cancellable.cancel()
+    }
 }
 
 enum TestAction: Action {
