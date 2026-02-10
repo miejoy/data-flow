@@ -20,7 +20,11 @@ public protocol DefaultStoreStorageKey: StoreStorageKey where Value == DefaultVa
 }
 
 /// 存储器内部使用的存储空间
+@MainActor
 final class StoreStorage {
+    
+    nonisolated init() {}
+    
     var storage: [ObjectIdentifier: Any] = [:]
     
     func get<Key: StoreStorageKey>(_ key: Key.Type) -> Key.Value? {

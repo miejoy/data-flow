@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct ReduceDependerId: Hashable, ExpressibleByStringLiteral, CustomStringConvertible {
+public struct ReduceDependerId: Hashable, ExpressibleByStringLiteral, CustomStringConvertible, Sendable {
     var dependerId: String
     public init(stringLiteral value: String) {
         self.dependerId = value

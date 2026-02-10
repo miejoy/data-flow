@@ -8,6 +8,7 @@
 import XCTest
 @testable import DataFlow
 
+@MainActor
 class SharedStateTests: XCTestCase {
     
     // 正常状态的获取
@@ -91,7 +92,7 @@ class SharedStateTests: XCTestCase {
         s_mapSharedStore.removeAll()
         
         var expectations: [XCTestExpectation] = []
-        var count: Int = 0
+        nonisolated(unsafe) var count: Int = 0
         
         (0..<5).forEach { _ in
             let expectation = expectation(description: "This should complete")
@@ -171,7 +172,7 @@ struct TestState: SharableState, ReducerLoadableState, ActionBindable {
     }
 }
 
-var fullSharedStateReducerCall = false
+@MainActor var fullSharedStateReducerCall = false
 struct FullSharedState: FullSharableState {
     typealias BindAction = TestAction
     
@@ -200,7 +201,7 @@ extension NormalSharedState : ActionBindable {
     typealias BindAction = NormalAction
 }
 
-var sharedReducerStateIsLoad = false
+@MainActor var sharedReducerStateIsLoad = false
 struct SharedReducerState : SharableState, ReducerLoadableState {
     static func loadReducers(on store: Store<SharedReducerState>) {
         sharedReducerStateIsLoad = true

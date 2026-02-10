@@ -23,55 +23,58 @@ extension Never: SharableState {
 // MARK: - Extension Store
 
 /// 保存所有的共享状态，ObjectIdentifier 为 SharableState 类型的唯一值
-var s_mapSharedStore : [ObjectIdentifier:Any] = [:]
+/// 使用 nonisolated(unsafe) 配合 DispatchQueue 锁保护，支持任意线程安全访问
+nonisolated(unsafe) var s_mapSharedStore : [ObjectIdentifier:Any] = [:]
 
 /// 可共享的状态的状态
 extension Store where State : SharableState {
     
-    /// 私有共享状态存储器创建
-    static var _shared : Store<State> {
+    /// 将新创建的 store 附加到 upStore（需要在 MainActor 上调用）
+    @MainActor private static func attachToUpStore(_ store: Store<State>) {
+        guard !(State.UpState.self is Never.Type) else { return }
+        let upStore = Store<State.UpState>.shared
+        if let existState = upStore.subStates[store.state.stateId] {
+            StoreMonitor.shared.fatalError(
+                "Attach State[\(String(describing: State.self))] to UpState[\(String(describing: State.UpState.self))] " +
+                "with stateId[\(store.state.stateId)] failed: " +
+                "exist State[\(String(describing: type(of: existState)))] with same stateId!"
+            )
+        }
+        upStore.add(subStore: store)
+    }
+    
+    /// 私有共享状态存储器创建，支持从任意线程调用
+    /// 使用 DispatchQueue 锁保护 s_mapSharedStore 的读写，确保线程安全
+    static nonisolated var _shared : Store<State> {
         let key = ObjectIdentifier(State.self)
-        var existOne: Bool = false
+        nonisolated(unsafe) var isNew: Bool = false
         let store: Store<State> = DispatchQueue.syncOnStoreQueue {
             if let theStore = s_mapSharedStore[key] as? Store<State> {
-                existOne = true
                 return theStore
             }
             let theStore = self.init(state: State())
             s_mapSharedStore[key] = theStore
+            isNew = true
             return theStore
         }
-        if existOne {
-            return store
-        }
         
-        // 判断 upStore 是否添加了当前的状态
-        if !(State.UpState.self is Never.Type) {
-            let upStore = Store<State.UpState>.shared
-            let attachStoreBlock = {
-                // state 操作必须在主线程
-                if let existState = upStore.subStates[store.state.stateId] {
-                    StoreMonitor.shared.fatalError(
-                        "Attach State[\(String(describing: State.self))] to UpState[\(String(describing: State.UpState.self))] " +
-                        "with stateId[\(store.state.stateId)] failed: " +
-                        "exist State[\(String(describing: type(of: existState)))] with same stateId!"
-                    )
-                }
-                upStore.add(subStore: store)
+        guard isNew else { return store }
+        
+        // 将 upStore 附加逻辑调度到 MainActor 执行
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                attachToUpStore(store)
             }
-            if Thread.isMainThread {
-                attachStoreBlock()
-            } else {
-                DispatchQueue.main.async {
-                    attachStoreBlock()
-                }
+        } else {
+            Task { @MainActor in
+                attachToUpStore(store)
             }
         }
         return store
     }
     
     /// 共享存储器，所有地方都可共享
-    public static var shared : Store<State> {
+    public nonisolated static var shared : Store<State> {
         return _shared
     }
 }
@@ -98,7 +101,7 @@ extension DispatchQueue {
     }()
     
     /// 检查是否允许在当前 queue 上，并同步执行代码
-    public static func syncOnStoreQueue<T>(execute work: () throws -> T) rethrows -> T {
+    public static func syncOnStoreQueue<T>(execute work: @Sendable () throws -> T) rethrows -> T {
         if DispatchQueue.getSpecific(key: Self.checkDispatchSpecificKey) == Self.sharedStoreLock.label {
             return try work()
         }

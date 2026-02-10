@@ -10,12 +10,13 @@ import Foundation
 import Combine
 
 /// 事件处理器
-public typealias Reducer<StorableState,Action> = (_ state: inout StorableState, _ action: Action) -> Void
+public typealias Reducer<StorableState,Action> = @MainActor (_ state: inout StorableState, _ action: Action) -> Void
 
 /// 循环观察检查存储器，保存了所有 store 的观察关系，用于避免 state 的循环观察，ObjectIdentifier 为 store 实例的唯一值
-var s_mapStateObserve : [ObjectIdentifier:[ObjectIdentifier]] = [:]
+@MainActor var s_mapStateObserve : [ObjectIdentifier:[ObjectIdentifier]] = [:]
 
 /// 通用存储器
+@MainActor
 @dynamicMemberLookup
 public final class Store<State: StorableState>: ObservableObject {
     
@@ -23,7 +24,7 @@ public final class Store<State: StorableState>: ObservableObject {
     typealias StateValueChangeCallback = (_ new: Any, _ old: Any, _ newState: State, _ oldState: State) -> Void
     
     /// 从哪里触发的处理器
-    public enum ReduceFrom {
+    public enum ReduceFrom: Sendable {
         case send
         case apply
         case dispatch
@@ -53,13 +54,8 @@ public final class Store<State: StorableState>: ObservableObject {
         }
     }
     /// 实际保存的状态，仅可内部调用
-    @Published var _state : State {
-        didSet {
-            for observer in arrObservers {
-                observer.run(_state, oldValue)
-            }
-        }
-    }
+    /// 不使用 @Published，因为 nonisolated 不支持 property wrapper；改为在 updateStateWithNotify 中手动触发 objectWillChange
+    var _state : State
     
     // 这两个属性为了解决一个 state 在处理一个 action 的途中触发需要处理另一个 action
     // 当前正在处理的 action
@@ -79,6 +75,7 @@ public final class Store<State: StorableState>: ObservableObject {
     /// 通用存储空间
     var storage: StoreStorage = .init()
     /// 初始化配置
+    /// 使用 nonisolated(unsafe) 以支持 nonisolated init 中的赋值
     let initConfig: StoreConfig
     
     // MARK: - Init
@@ -87,15 +84,28 @@ public final class Store<State: StorableState>: ObservableObject {
     ///
     /// - Parameter state: 需要包装的状态
     /// - Returns: 返回对应存储器
-    public static func box(_ state: State, configs: [StoreConfigPair] = []) -> Self {
+    public nonisolated static func box(_ state: State, configs: [StoreConfigPair] = []) -> Self {
         return self.init(state: state, configs: configs)
     }
     
-    init(state: State, configs: [StoreConfigPair] = []) {
+    /// nonisolated 构造器，允许在任意隔离域中创建 Store 实例
+    /// 构造完成后会在 MainActor 上执行 didBoxed 和 createStore 事件通知
+    nonisolated required init(state: State, configs: [StoreConfigPair] = []) {
         self._state = state
         self.initConfig = .init(configs)
-        State.didBoxed(on: self)
-        StoreMonitor.shared.record(event: .createStore(self))
+        // didBoxed 和 StoreMonitor 通知需要在 MainActor 上执行
+        // 如果当前已在主线程，直接同步执行；否则异步调度到 MainActor
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                State.didBoxed(on: self)
+                StoreMonitor.shared.record(event: .createStore(self))
+            }
+        } else {
+            Task { @MainActor in
+                State.didBoxed(on: self)
+                StoreMonitor.shared.record(event: .createStore(self))
+            }
+        }
     }
     
     // MARK: - Get & Set
@@ -150,7 +160,6 @@ public final class Store<State: StorableState>: ObservableObject {
     ///
     /// - Parameter reducer: 注册的处理方法
     public func register<A:Action>(dependers: [ReduceDependerId] = [], reducer: @escaping Reducer<State,A>) {
-        assert(Thread.isMainThread, "Should call on main thread")
         self.mapReducer[ObjectIdentifier(A.self)] = (dependers, { state, action in
             if let specificAction = action as? A {
                 reducer(&state, specificAction)
@@ -166,7 +175,6 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Warning: 这里很容易出现循环观察的情况，需要自行考虑清楚，如果无法判断，请使用 observe(store:) 自动判断
     /// - Parameter callback: 当前状态变化时的回调
     public func addObserver(callback: @escaping StateChangeCallback) -> AnyCancellable {
-        assert(Thread.isMainThread, "Should call on main thread")
         generateObserverId += 1
         let observerId = generateObserverId
         arrObservers.append(StateObserver(observerId: observerId, callback: callback))
@@ -192,7 +200,6 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Parameter keyPath: 对应值的 keyPath
     /// - Parameter callback: 对应值的变化时的回调
     public func addObserver<T: Equatable>(of keyPath: KeyPath<State, T>, callback: @escaping (_ new: T, _ old: T, _ newState: State, _ oldState: State) -> Void) -> AnyCancellable {
-        assert(Thread.isMainThread, "Should call on main thread")
         let callback: StateValueChangeCallback = { (new, old, newState, oldState) in
             guard let new = new as? T,
                   let old = old as? T else {
@@ -228,7 +235,6 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Parameter store: 被观察的存储器
     /// - Parameter callback: 被观察的存储器状态变化时的回调
     public func observe<S:StorableState>(store: Store<S>, callback: @escaping (_ new: S, _ old: S) -> Void) {
-        assert(Thread.isMainThread, "Should call on main thread")
         // 添加循环观察判断
         Self.recordObserve(from: self, to: store)
         let innerCancellable = store.addObserver { new, old in
@@ -248,7 +254,6 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Parameter store: 被观察的存储器
     /// - Parameter callback: 被观察的存储器状态变化时的回调
     public func observe<S:StorableState, A:Action>(store: Store<S>, callback: @escaping (_ new: S, _ old: S) -> A?) {
-        assert(Thread.isMainThread, "Should call on main thread")
         // 添加循环观察判断
         Self.recordObserve(from: self, to: store)
         let innerCancellable = store.addObserver { [weak self] new, old in
@@ -282,7 +287,6 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Parameter keyPath: 被观察对应值的 keyPath
     /// - Parameter callback: 被观察对应值的变化时调用该回调
     public func observe<S:StorableState, T:Equatable>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T, _ newState: S, _ oldState: S) -> Void) {
-        assert(Thread.isMainThread, "Should call on main thread")
         let cancellable = store.addObserver(of: keyPath) { new, old, newState, oldState in
             callback(new, old, newState, oldState)
         }
@@ -308,7 +312,6 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Parameter keyPath: 被观察对应值的 keyPath
     /// - Parameter callback: 被观察对应值的变化时调用该回调生成可应用的事件
     public func observe<S:StorableState, T:Equatable, A:Action>(store: Store<S>, of keyPath: KeyPath<S, T>, callback: @escaping (_ new: T, _ old: T, _ newState: S, _ oldState: S) -> A?) {
-        assert(Thread.isMainThread, "Should call on main thread")
         let cancellable = store.addObserver(of: keyPath) { [weak self] new, old, newState, oldState in
             if let self = self, let action = callback(new, old, newState, oldState) {
                 self.apply(action: action)
@@ -400,7 +403,6 @@ public final class Store<State: StorableState>: ObservableObject {
     ///
     /// - Parameter action: 需要执行的事件
     public func send<A:Action>(action : A) {
-        assert(Thread.isMainThread, "Should call on main thread")
         reduce(action: action, from: .send)
     }
     
@@ -408,7 +410,6 @@ public final class Store<State: StorableState>: ObservableObject {
     ///
     /// - Parameter action: 需要应用的事件
     public func apply<A:Action>(action : A) {
-        assert(Thread.isMainThread, "Should call on main thread")
         reduce(action: action, from: .apply)
     }
     
@@ -417,8 +418,8 @@ public final class Store<State: StorableState>: ObservableObject {
     /// - Parameters:
     ///   - action: 派发的对应事件
     ///   - completion: 事件执行完成之后的回调，会在主线程调用
-    public func dispatch<A:Action>(action: A, completion: (()->Void)? = nil) {
-        DispatchQueue.main.async {
+    public nonisolated func dispatch<A:Action>(action: A, completion: (@Sendable ()->Void)? = nil) {
+        Task { @MainActor in
             self.reduce(action: action, from: .dispatch)
             completion?()
         }
@@ -468,7 +469,11 @@ public final class Store<State: StorableState>: ObservableObject {
     /// 更新状态并通知监听着
     func updateStateWithNotify(_ state: State, on keyPath: AnyKeyPath? = nil) {
         let oldState = _state
+        objectWillChange.send()
         _state = state
+        for observer in arrObservers {
+            observer.run(_state, oldState)
+        }
         StoreMonitor.shared.record(event: .didUpdateStateOn(self, oldState: oldState))
         if let keyPath = keyPath {
             notifyValueChange(to: _state, oldState, on: keyPath)
@@ -511,17 +516,10 @@ public final class Store<State: StorableState>: ObservableObject {
     }
     
     deinit {
-        // 这里可能有线程问题
-        StoreMonitor.shared.record(event: .destroyStore(self))
-        if Thread.isMainThread {
+        // 由于 Store 是 @MainActor 类，Swift 运行时保证其 deinit 在主线程调用，因此 assumeIsolated 是安全的
+        MainActor.assumeIsolated {
+            StoreMonitor.shared.record(event: .destroyStore(self))
             self.destroyCallback?(self._state)
-        } else {
-            if let destroyCallback = self.destroyCallback {
-                let tmpState = self._state
-                DispatchQueue.main.async {
-                    destroyCallback(tmpState)
-                }
-            }
         }
     }
 }
@@ -549,7 +547,6 @@ extension Store where State : StateContainable {
     ///
     /// - Parameter subStore: 被添加的子状态
     public func add<SubState: AttachableState>(subStore: Store<SubState>) where SubState.UpState == State {
-        assert(Thread.isMainThread, "Should call on main thread")
         self._state.updateSubState(state: subStore.state)
         // 添加当前 store（即 subStore 对应 UpStore）对 subStore 的监听
         self.observe(store: subStore) { [weak self] new, _ in
@@ -567,7 +564,7 @@ extension Store where State : StateContainable {
 /// 可直接初始化的状态
 extension Store where State : UseInitializableState {
     // 可直接初始化的状态，对应存储器也可以直接初始化
-    public convenience init() {
+    public nonisolated convenience init() {
         self.init(state: State())
     }
 }
@@ -575,10 +572,20 @@ extension Store where State : UseInitializableState {
 extension Store where State: SharableState {
     /// 给 SharableState 提供包装状态方法，需配置 useBoxOnShared 才能正常使用
     /// 配置 useBoxOnShared = true，代表调用方必然重写了 shared 方法 ，并自行管理共享状态存储器生命周期了
-    public static func box(_ state: State = State(), configs: [StoreConfigPair] = []) -> Self {
+    public nonisolated static func box(_ state: State = State(), configs: [StoreConfigPair] = []) -> Self {
         let store = self.init(state: state, configs: configs)
-        if !store[.useBoxOnShared, default: false] {
-            StoreMonitor.shared.fatalError("'SharableState' cann't use box() directly. Use 'shared' instead or set 'useBoxOnShared' config to 'true'")
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                if !store[.useBoxOnShared, default: false] {
+                    StoreMonitor.shared.fatalError("'SharableState' cann't use box() directly. Use 'shared' instead or set 'useBoxOnShared' config to 'true'")
+                }
+            }
+        } else {
+            Task { @MainActor in
+                if !store[.useBoxOnShared, default: false] {
+                    StoreMonitor.shared.fatalError("'SharableState' cann't use box() directly. Use 'shared' instead or set 'useBoxOnShared' config to 'true'")
+                }
+            }
         }
         return store
     }

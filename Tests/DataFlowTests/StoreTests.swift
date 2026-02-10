@@ -8,6 +8,7 @@
 import XCTest
 @testable import DataFlow
 
+@MainActor
 class StoreTests: XCTestCase {
     
     func testStoreObservable() {
@@ -859,14 +860,14 @@ struct NormalState : StorableState, UseInitializableState {
     var name: String = ""
 }
 
-var reducerStateIsLoad = false
+@MainActor var reducerStateIsLoad = false
 struct ReducerState : StorableState, ReducerLoadableState {
     static func loadReducers(on store: Store<ReducerState>) {
         reducerStateIsLoad = true
     }
 }
 
-var initReducerStateIsLoad = false
+@MainActor var initReducerStateIsLoad = false
 struct InitReducerState : UseInitializableState, ReducerLoadableState {
     static func loadReducers(on store: Store<InitReducerState>) {
         initReducerStateIsLoad = true
@@ -875,7 +876,7 @@ struct InitReducerState : UseInitializableState, ReducerLoadableState {
 
 struct ContainState : StorableState, StateContainable {
     
-    var subStates: [String : StorableState] = [:]
+    var subStates: [String : any StorableState] = [:]
     
     typealias UpState = AppState
 }
@@ -970,7 +971,7 @@ enum ViewId: StoreStorageKey {
 }
 
 enum DefaultViewId: DefaultStoreStorageKey {
-    static var defaultValueCall: Bool = false
+    static nonisolated(unsafe) var defaultValueCall: Bool = false
     static var defaultValue: String {
         defaultValueCall = true
         return "DefaultViewId"

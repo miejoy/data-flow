@@ -9,6 +9,7 @@
 import Foundation
 
 /// 被抹去 State 类型的存储器
+@MainActor
 public final class AnyStore {
     public var stateType: StorableState.Type
     public var value : Any

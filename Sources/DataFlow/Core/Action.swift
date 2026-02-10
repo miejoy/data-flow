@@ -9,7 +9,7 @@
 import Foundation
 
 /// 通用事件协议
-public protocol Action {
+public protocol Action: Sendable {
 }
 
 /// 可绑定事件的
@@ -101,8 +101,8 @@ extension Store where State : ActionBindable {
     /// - Parameters:
     ///   - action: 派发的对应事件
     ///   - completion: 事件执行完成之后的回调，会在主线程调用
-    public func dispatch<A>(action: A, completion:(()->Void)? = nil) where State.BindAction == A  {
-        DispatchQueue.main.async {
+    public nonisolated func dispatch<A>(action: A, completion:(@Sendable ()->Void)? = nil) where State.BindAction == A  {
+        Task { @MainActor in
             self.reduce(action: action, from: .dispatch)
             completion?()
         }

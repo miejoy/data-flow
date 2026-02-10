@@ -10,7 +10,7 @@ import Foundation
 import Combine
 
 /// 存储器变化事件
-public enum StoreEvent<State: StorableState> {
+public enum StoreEvent<State: StorableState>: @unchecked Sendable {
     case createStore(Store<State>)
     case beforeReduceActionOn(Store<State>, Store<State>.ReduceFrom, _ action: Action)
     case afterReduceActionOn(Store<State>, Store<State>.ReduceFrom, _ action: Action, newState: State)
@@ -26,11 +26,13 @@ public enum StoreEvent<State: StorableState> {
 }
 
 /// 存储器变化观察者
+@MainActor
 public protocol StoreMonitorOberver: AnyObject {
     func receiveStoreEvent<State:StorableState>(_ event: StoreEvent<State>)
 }
 
 /// 存储器监听器
+@MainActor
 public final class StoreMonitor {
         
     struct Observer {
@@ -38,8 +40,8 @@ public final class StoreMonitor {
         weak var observer: StoreMonitorOberver?
     }
     
-    /// 监听器共享单例
-    public static var shared: StoreMonitor = .init()
+    /// 监听器共享单例，使用 nonisolated(unsafe) 允许从任意线程访问
+    public nonisolated(unsafe) static var shared: StoreMonitor = .init()
     
     /// 所有观察者
     var arrObservers: [Observer] = []
@@ -47,7 +49,7 @@ public final class StoreMonitor {
     /// 是否使用严格模式，即所有 state 更新必须通过 send、applay、dispach 方法
     var useStrictMode: Bool = false
     
-    required init() {
+    nonisolated required init() {
     }
     
     /// 添加观察者

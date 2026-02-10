@@ -8,6 +8,7 @@
 import XCTest
 @testable import DataFlow
 
+@MainActor
 class ReduceDependerTests: XCTestCase {
     
     func testDependerDuplicateRegister() {

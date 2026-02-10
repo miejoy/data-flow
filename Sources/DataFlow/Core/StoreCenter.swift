@@ -7,13 +7,15 @@
 
 import Foundation
 
+@MainActor
 public final class StoreCenter {
-    public static var shared: StoreCenter = .init()
+    public nonisolated(unsafe) static var shared: StoreCenter = .init()
     
     var dependerMap: [ReduceDependerId: ReduceDepender] = [:]
     
+    nonisolated init() {}
+    
     public func registeReduceDepender<D: ReduceDepender>(_ depender: D) {
-        assert(Thread.isMainThread, "Should call on main thread")
         if dependerMap[D.dependerId] != nil {
             StoreMonitor.shared.fatalError("Duplicate registration of reduce depender '\(D.dependerId)'")
         }

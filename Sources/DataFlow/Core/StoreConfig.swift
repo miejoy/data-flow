@@ -9,7 +9,7 @@ import Foundation
 
 
 /// 初始化配置使用的 Key
-public struct StoreConfigKey<Value>: Hashable, CustomStringConvertible {
+public struct StoreConfigKey<Value>: Hashable, CustomStringConvertible, Sendable {
     let name: String
 
     /// 初始化配置 key
@@ -23,7 +23,7 @@ public struct StoreConfigKey<Value>: Hashable, CustomStringConvertible {
 }
 
 /// 初始化配置对象
-public struct StoreConfig {
+public struct StoreConfig: @unchecked Sendable {
     let storage: [AnyHashable: Any]
     
     init(_ configPair: [StoreConfigPair]) {
@@ -38,10 +38,10 @@ public struct StoreConfig {
 }
 
 /// 初始化配置对
-public struct StoreConfigPair {
+public struct StoreConfigPair: @unchecked Sendable {
     let key: AnyHashable
-    let value: Any
-    init(key: AnyHashable, value: Any) {
+    let value: Sendable
+    init(key: AnyHashable, value: Sendable) {
         self.key = key
         self.value = value
     }
@@ -52,7 +52,7 @@ public struct StoreConfigPair {
     ///   - key: 配置 key
     ///   - value: 配置 值
     /// - Returns: 返回创建的配置对
-    public static func make<Value>(_ key: StoreConfigKey<Value>, _ value: Value) -> Self {
+    public static func make<Value: Sendable>(_ key: StoreConfigKey<Value>, _ value: Value) -> Self {
         return self.init(key: AnyHashable(key), value: value)
     }
 }

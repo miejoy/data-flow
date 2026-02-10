@@ -9,11 +9,11 @@
 import Foundation
 
 /// 可存储状态协议
-public protocol StorableState {
+public protocol StorableState: Sendable {
     /// 状态 ID，默认为结构体名称
     var stateId: String { get }
-    /// 被装载到 Store 时调用，尽量不要重写他，如果确实要重写，请注意 ReducerLoadableState 相关方法的调用。重新该方法需要自行关注线程问题
-    static func didBoxed(on store: Store<some StorableState>)
+    /// 被装载到 Store 时调用，尽量不要重写他，如果确实要重写，请注意 ReducerLoadableState 相关方法的调用
+    @MainActor static func didBoxed(on store: Store<some StorableState>)
 }
 
 /// 可直接初始化的状态
@@ -25,8 +25,8 @@ public protocol InitializableState {
 public protocol UseInitializableState: InitializableState {}
 
 /// 可容纳子状态的
-public protocol StateContainable {
-    var subStates : [String:StorableState] { get set }
+public protocol StateContainable: Sendable {
+    var subStates : [String: any StorableState] { get set }
 }
 
 /// 可附加于其他状态的状态
@@ -37,8 +37,8 @@ public protocol AttachableState: StorableState {
 
 /// 可自动加载处理器的状态
 public protocol ReducerLoadableState : StorableState {
-    /// 加载处理器，该方法只会在主线程调用。请不要直接调用，除非自己重写了 didBoxed(on:) 方法，需要调用时也确保在主线程调用
-    static func loadReducers(on store: Store<Self>)
+    /// 加载处理器，该方法只会在主线程调用。请不要直接调用，除非自己重写了 didBoxed(on:) 方法
+    @MainActor static func loadReducers(on store: Store<Self>)
 }
 
 
@@ -50,7 +50,7 @@ extension StorableState {
         String(describing: Self.self)
     }
     
-    public static func didBoxed(on store: Store<some StorableState>) {
+    @MainActor public static func didBoxed(on store: Store<some StorableState>) {
     }
 }
 
@@ -63,15 +63,9 @@ extension StateContainable {
 }
 
 extension ReducerLoadableState {
-    public static func didBoxed(on store: Store<some StorableState>) {
+    @MainActor public static func didBoxed(on store: Store<some StorableState>) {
         if let store = store as? Store<Self> {
-            if Thread.isMainThread {
-                loadReducers(on: store)
-            } else {
-                DispatchQueue.main.async {
-                    loadReducers(on: store)
-                }
-            }
+            loadReducers(on: store)
         }
     }
 }
@@ -85,7 +79,7 @@ extension Never : StorableState {
 }
 
 extension Never : StateContainable {
-    public var subStates: [String : StorableState] {
+    public var subStates: [String : any StorableState] {
         get { fatalError("Never can not get subStates") }
         set { fatalError("Never can not set subStates") }
     }
