@@ -23,7 +23,7 @@ extension Never: SharableState {
 // MARK: - Extension Store
 
 /// 保存所有的共享状态，ObjectIdentifier 为 SharableState 类型的唯一值
-/// 使用 nonisolated(unsafe) 配合 DispatchQueue 锁保护，支持任意线程安全访问
+/// 使用 nonisolated(unsafe) 配合 DispatchQueue 的 StoreLock 锁保护，支持任意线程安全访问
 nonisolated(unsafe) var s_mapSharedStore : [ObjectIdentifier:Any] = [:]
 
 /// 可共享的状态的状态
@@ -88,23 +88,3 @@ extension SharableState {
     }
 }
 
-// MARK: - DispatchQueue
-
-extension DispatchQueue {
-    
-    static let checkDispatchSpecificKey: DispatchSpecificKey<String> = .init()
-    /// 共享 store 创建时使用的锁，目前没有移除共享 store 的方式，后面开发时移除共享 store 必须在主线程，并包上这个锁
-    static let sharedStoreLock: DispatchQueue = {
-        let queue = DispatchQueue(label: "data-flow.shared.lock")
-        queue.setSpecific(key: checkDispatchSpecificKey, value: queue.label)
-        return queue
-    }()
-    
-    /// 检查是否允许在当前 queue 上，并同步执行代码
-    public static func syncOnStoreQueue<T>(execute work: @Sendable () throws -> T) rethrows -> T {
-        if DispatchQueue.getSpecific(key: Self.checkDispatchSpecificKey) == Self.sharedStoreLock.label {
-            return try work()
-        }
-        return try Self.sharedStoreLock.sync(execute: work)
-    }
-}

@@ -72,8 +72,8 @@ public final class Store<State: StorableState>: ObservableObject {
     var destroyCallback : ((State) -> Void)? = nil
     var generateObserverId: Int = 0
     
-    /// 通用存储空间
-    var storage: StoreStorage = .init()
+    /// 通用存储空间，非隔离环境，受 DispatchQueue 的 StoreLock 锁保护
+    nonisolated(unsafe) let storage: StoreStorage = .init()
     /// 初始化配置
     /// 使用 nonisolated(unsafe) 以支持 nonisolated init 中的赋值
     let initConfig: StoreConfig

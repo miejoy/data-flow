@@ -19,41 +19,46 @@ public protocol DefaultStoreStorageKey: StoreStorageKey where Value == DefaultVa
     static var defaultValue: DefaultValue { get }
 }
 
-/// 存储器内部使用的存储空间
-@MainActor
+/// 存储器内部使用的存储空间，受 DispatchQueue 的 StoreLock 锁保护
 final class StoreStorage {
     
-    nonisolated init() {}
+    init() {}
     
     var storage: [ObjectIdentifier: Any] = [:]
     
     func get<Key: StoreStorageKey>(_ key: Key.Type) -> Key.Value? {
-        return self.storage[ObjectIdentifier(Key.self)] as? Key.Value
+        DispatchQueue.syncOnStoreQueue {
+            return self.storage[ObjectIdentifier(Key.self)] as? Key.Value
+        }
     }
     
     func get<Key: DefaultStoreStorageKey>(_ key: Key.Type) -> Key.Value {
-        let key = ObjectIdentifier(Key.self)
-        if let value = self.storage[key] as? Key.Value {
-            return value
+        DispatchQueue.syncOnStoreQueue {
+            let key = ObjectIdentifier(Key.self)
+            if let value = self.storage[key] as? Key.Value {
+                return value
+            }
+            let defaultValue = Key.defaultValue
+            set(Key.self, to: defaultValue)
+            return defaultValue
         }
-        let defaultValue = Key.defaultValue
-        set(Key.self, to: defaultValue)
-        return defaultValue
     }
 
     func set<Key: StoreStorageKey>(_ key: Key.Type, to value: Key.Value?) {
-        let key = ObjectIdentifier(Key.self)
-        if let value = value {
-            self.storage[key] = value
-        } else if self.storage[key] != nil {
-            self.storage.removeValue(forKey: key)
+        DispatchQueue.syncOnStoreQueue {
+            let key = ObjectIdentifier(Key.self)
+            if let value = value {
+                self.storage[key] = value
+            } else if self.storage[key] != nil {
+                self.storage.removeValue(forKey: key)
+            }
         }
     }
 }
 
 extension Store {
     /// 读取和写入传入 Key 中定义的存储值
-    public subscript<Key: StoreStorageKey>(_ key: Key.Type) -> Key.Value? {
+    public nonisolated subscript<Key: StoreStorageKey>(_ key: Key.Type) -> Key.Value? {
         get {
             self.storage.get(Key.self)
         }
@@ -63,7 +68,7 @@ extension Store {
     }
     
     /// 读取传入 Key 中定义的存储值，不存在时返回默认值
-    public subscript<Key: StoreStorageKey>(_ key: Key.Type, default defaultValue: @autoclosure () -> Key.Value) -> Key.Value {
+    public nonisolated subscript<Key: StoreStorageKey>(_ key: Key.Type, default defaultValue: @autoclosure () -> Key.Value) -> Key.Value {
         get {
             if let value = self.storage.get(Key.self) {
                 return value
@@ -75,7 +80,7 @@ extension Store {
     }
     
     /// 读取传入 Key 中定义的存储值，不存在时返回 Key 中定义的默认值
-    public subscript<Key: DefaultStoreStorageKey>(_ key: Key.Type) -> Key.Value {
+    public nonisolated subscript<Key: DefaultStoreStorageKey>(_ key: Key.Type) -> Key.Value {
         get {
             self.storage.get(Key.self)
         }
