@@ -65,9 +65,10 @@ class SharedStateTests: XCTestCase {
     func testDuplicateSharedState() {
         
         StoreMonitor.shared.arrObservers = []
-        class Oberver: StoreMonitorOberver {
+        @MainActor
+        final class Oberver: StoreMonitorObserver {
             var duplicateFatalErrorCall = false
-            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
+            func receiveStoreEvent(_ event: StoreEvent) {
                 if case .fatalError(let message) = event,
                     message == ("Attach State[DuplicateSharedState] to UpState[AppState] " +
                                 "with stateId[NormalSharedState] failed: " +
@@ -129,9 +130,10 @@ class SharedStateTests: XCTestCase {
     
     func testUseBoxOnSharableState() {
         StoreMonitor.shared.arrObservers = []
-        class Oberver: StoreMonitorOberver {
+        @MainActor
+        final class Oberver: StoreMonitorObserver {
             var duplicateFatalErrorCall = false
-            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
+            func receiveStoreEvent(_ event: StoreEvent) {
                 if case .fatalError(let message) = event,
                     message == ("'SharableState' cann't use box() directly. " +
                                 "Use 'shared' instead or set 'useBoxOnShared' config to 'true'") {

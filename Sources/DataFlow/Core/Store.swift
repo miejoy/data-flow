@@ -15,6 +15,13 @@ public typealias Reducer<StorableState,Action> = @MainActor (_ state: inout Stor
 /// 循环观察检查存储器，保存了所有 store 的观察关系，用于避免 state 的循环观察，ObjectIdentifier 为 store 实例的唯一值
 @MainActor var s_mapStateObserve : [ObjectIdentifier:[ObjectIdentifier]] = [:]
 
+/// 从哪里触发的处理器
+public enum ReduceActionFrom: Sendable {
+    case send
+    case apply
+    case dispatch
+}
+
 /// 通用存储器
 @MainActor
 @dynamicMemberLookup
@@ -23,12 +30,7 @@ public final class Store<State: StorableState>: ObservableObject {
     public typealias StateChangeCallback = (_ new: State, _ old: State) -> Void
     typealias StateValueChangeCallback = (_ new: Any, _ old: Any, _ newState: State, _ oldState: State) -> Void
     
-    /// 从哪里触发的处理器
-    public enum ReduceFrom: Sendable {
-        case send
-        case apply
-        case dispatch
-    }
+    
 
     /// 状态值监听者
     struct StateValueObserver {
@@ -46,7 +48,7 @@ public final class Store<State: StorableState>: ObservableObject {
             _state
         }
         set {
-            StoreMonitor.shared.record(event: .willDirectUpdateStateOn(self, newValue))
+            StoreMonitor.shared.record(event: .willDirectUpdateStateOn(self.eraseToAny(), newValue))
             if StoreMonitor.shared.useStrictMode {
                 StoreMonitor.shared.fatalError("Never update state directly! Use send/dispatch action instead")
             }
@@ -61,7 +63,7 @@ public final class Store<State: StorableState>: ObservableObject {
     // 当前正在处理的 action
     var reducingAction: Action? = nil
     // 如果存在处理中的 action，这里会保存带处理的 action
-    var pendingActions: [(Action, ReduceFrom)] = []
+    var pendingActions: [(Action, ReduceActionFrom)] = []
     
     /// 存储处理器 [ObjectIdentifier(Action) : ( [dependerId], Reducer) ]
     var mapReducer : [ObjectIdentifier: ([ReduceDependerId], Reducer<State,Action>)] = [:]
@@ -93,17 +95,19 @@ public final class Store<State: StorableState>: ObservableObject {
     nonisolated required init(state: State, configs: [StoreConfigPair] = []) {
         self._state = state
         self.initConfig = .init(configs)
+        // 所有状态存到 store，都先将 stateId 存到 store
+        self[.stateId] = state.stateId
         // didBoxed 和 StoreMonitor 通知需要在 MainActor 上执行
         // 如果当前已在主线程，直接同步执行；否则异步调度到 MainActor
         if Thread.isMainThread {
             MainActor.assumeIsolated {
                 State.didBoxed(on: self)
-                StoreMonitor.shared.record(event: .createStore(self))
+                StoreMonitor.shared.record(event: .createStore(self.eraseToAny()))
             }
         } else {
             Task { @MainActor in
                 State.didBoxed(on: self)
-                StoreMonitor.shared.record(event: .createStore(self))
+                StoreMonitor.shared.record(event: .createStore(self.eraseToAny()))
             }
         }
     }
@@ -132,7 +136,7 @@ public final class Store<State: StorableState>: ObservableObject {
             }
             var state = _state
             state[keyPath: keyPath] = newValue
-            StoreMonitor.shared.record(event: .willDirectUpdateStateValueOn(self, keyPath, newValue))
+            StoreMonitor.shared.record(event: .willDirectUpdateStateValueOn(self.eraseToAny(), keyPath, newValue))
             updateStateWithNotify(state, on: keyPath)
         }
     }
@@ -148,7 +152,7 @@ public final class Store<State: StorableState>: ObservableObject {
             }
             var state = _state
             state[keyPath: keyPath] = newValue
-            StoreMonitor.shared.record(event: .willDirectUpdateStateValueOn(self, keyPath, newValue))
+            StoreMonitor.shared.record(event: .willDirectUpdateStateValueOn(self.eraseToAny(), keyPath, newValue))
             updateStateWithNotify(state, on: keyPath)
         }
     }
@@ -360,7 +364,7 @@ public final class Store<State: StorableState>: ObservableObject {
         let fromId = ObjectIdentifier(from)
         let toId = ObjectIdentifier(to)
         if isToObserveFrom(toId: toId, fromId: fromId) {
-            StoreMonitor.shared.record(event: .cyclicObserve(from: from, to: to.eraseToAnyStore()))
+            StoreMonitor.shared.record(event: .cyclicObserve(from: from.eraseToAny(), to: to.eraseToAny()))
             StoreMonitor.shared.fatalError("Exist cyclic observe from \(from.state.stateId) to \(to.state.stateId)")
         }
         var arrToObserves = s_mapStateObserve[fromId] ?? []
@@ -428,9 +432,9 @@ public final class Store<State: StorableState>: ObservableObject {
     // MARK: - Reduce
     
     /// 开始处理事件
-    func reduce<A: Action>(action: A, from: ReduceFrom) {
+    func reduce<A: Action>(action: A, from: ReduceActionFrom) {
         if let reducingAction = reducingAction {
-            StoreMonitor.shared.record(event: .reduceInOtherReduce(self, curAction: action, otherAction: reducingAction))
+            StoreMonitor.shared.record(event: .reduceInOtherReduce(self.eraseToAny(), curAction: action, otherAction: reducingAction))
             pendingActions.insert((action, from), at: 0)
             return
         }
@@ -441,7 +445,7 @@ public final class Store<State: StorableState>: ObservableObject {
                 isChange = true
             }
         }
-        StoreMonitor.shared.record(event: .beforeReduceActionOn(self, from, action))
+        StoreMonitor.shared.record(event: .beforeReduceActionOn(self.eraseToAny(), from, action))
         
         if let (dependers, reducer) = mapReducer[ObjectIdentifier(A.self)] {
             guard StoreCenter.shared.checkDependency(dependers, newState, action) else {
@@ -451,9 +455,9 @@ public final class Store<State: StorableState>: ObservableObject {
             reducer(&newState, action)
             reducingAction = nil
         } else {
-            StoreMonitor.shared.record(event: .reduceNotRegisterForActionOn(self, from, action))
+            StoreMonitor.shared.record(event: .reduceNotRegisterForActionOn(self.eraseToAny(), from, action))
         }
-        StoreMonitor.shared.record(event: .afterReduceActionOn(self, from, action, newState: newState))
+        StoreMonitor.shared.record(event: .afterReduceActionOn(self.eraseToAny(), from, action, newState: newState))
         
         if isChange {
             updateStateWithNotify(newState)
@@ -474,7 +478,7 @@ public final class Store<State: StorableState>: ObservableObject {
         for observer in arrObservers {
             observer.run(_state, oldState)
         }
-        StoreMonitor.shared.record(event: .didUpdateStateOn(self, oldState: oldState))
+        StoreMonitor.shared.record(event: .didUpdateStateOn(self.eraseToAny(), oldState: oldState))
         if let keyPath = keyPath {
             notifyValueChange(to: _state, oldState, on: keyPath)
         } else {
@@ -518,7 +522,7 @@ public final class Store<State: StorableState>: ObservableObject {
     deinit {
         // 由于 Store 是 @MainActor 类，Swift 运行时保证其 deinit 在主线程调用，因此 assumeIsolated 是安全的
         MainActor.assumeIsolated {
-            StoreMonitor.shared.record(event: .destroyStore(self))
+            StoreMonitor.shared.record(event: .destroyStore(self.eraseToAny()))
             self.destroyCallback?(self._state)
         }
     }

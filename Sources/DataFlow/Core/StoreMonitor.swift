@@ -10,69 +10,126 @@ import Foundation
 import Combine
 
 /// 存储器变化事件
-public enum StoreEvent<State: StorableState>: @unchecked Sendable {
-    case createStore(Store<State>)
-    case beforeReduceActionOn(Store<State>, Store<State>.ReduceFrom, _ action: Action)
-    case afterReduceActionOn(Store<State>, Store<State>.ReduceFrom, _ action: Action, newState: State)
-    case reduceNotRegisterForActionOn(Store<State>, Store<State>.ReduceFrom, _ action: Action)
-    case willDirectUpdateStateOn(Store<State>, _ newState: State)
-    case willDirectUpdateStateValueOn(Store<State>, _ keyPath: PartialKeyPath<State>, _ newValue: Any)
-    case didUpdateStateOn(Store<State>, oldState: State)
+public enum StoreEvent: @unchecked Sendable, MonitorEvent {
+    case createStore(AnyStore)
+    case beforeReduceActionOn(AnyStore, ReduceActionFrom, _ action: Action)
+    case afterReduceActionOn(AnyStore, ReduceActionFrom, _ action: Action, newState: StorableState)
+    case reduceNotRegisterForActionOn(AnyStore, ReduceActionFrom, _ action: Action)
+    case willDirectUpdateStateOn(AnyStore, _ newState: StorableState)
+    case willDirectUpdateStateValueOn(AnyStore, _ keyPath: AnyKeyPath, _ newValue: Any)
+    case didUpdateStateOn(AnyStore, oldState: StorableState)
     /// 在处理当前事件时，发现正在进行另一个事件处理
-    case reduceInOtherReduce(Store<State>, curAction: Action, otherAction: Action)
-    case cyclicObserve(from: Store<State>, to: AnyStore)
-    case destroyStore(Store<State>)
+    case reduceInOtherReduce(AnyStore, curAction: Action, otherAction: Action)
+    case cyclicObserve(from: AnyStore, to: AnyStore)
+    case destroyStore(AnyStore)
     case fatalError(String)
 }
 
 /// 存储器变化观察者
-@MainActor
-public protocol StoreMonitorOberver: AnyObject {
-    func receiveStoreEvent<State:StorableState>(_ event: StoreEvent<State>)
+public protocol StoreMonitorObserver: MonitorObserver {
+    @MainActor
+    func receiveStoreEvent(_ event: StoreEvent)
 }
 
 /// 存储器监听器
-@MainActor
-public final class StoreMonitor {
-        
-    struct Observer {
-        let observerId: Int
-        weak var observer: StoreMonitorOberver?
+public final class StoreMonitor: BaseMonitor<StoreEvent> {
+    public nonisolated(unsafe) static let shared: StoreMonitor = {
+        StoreMonitor { event, observer in
+            if Thread.isMainThread {
+                MainActor.assumeIsolated {
+                    (observer as? StoreMonitorObserver)?.receiveStoreEvent(event)
+                }
+            } else {
+                Task { @MainActor in
+                    (observer as? StoreMonitorObserver)?.receiveStoreEvent(event)
+                }
+            }
+        }
+    }()
+    
+    /// 是否使用严格模式，即所有 state 更新必须通过 send、applay、dispach 方法
+    var useStrictMode: Bool = false
+    
+    public func addObserver(_ observer: StoreMonitorObserver) -> AnyCancellable {
+        super.addObserver(observer)
     }
     
-    /// 监听器共享单例，使用 nonisolated(unsafe) 允许从任意线程访问
-    public nonisolated(unsafe) static var shared: StoreMonitor = .init()
+    public override func addObserver(_ observer: MonitorObserver) -> AnyCancellable {
+        Swift.fatalError("Only StoreMonitorObserver can observer this monitor")
+    }
+}
+
+
+// MARK: - MonitorQueue
+
+extension DispatchQueue {
+    static let monitorDispatchSpecificKey: DispatchSpecificKey<String> = .init()
+    static let monitorLock: DispatchQueue = {
+        let queue = DispatchQueue(label: "data-flow.monitor.lock")
+        queue.setSpecific(key: monitorDispatchSpecificKey, value: queue.label)
+        return queue
+    }()
+    
+    /// 在 monitor 队列中执行
+    public static func syncOnMonitorQueue<T>(execute work: () throws -> T) rethrows -> T {
+        if DispatchQueue.getSpecific(key: Self.monitorDispatchSpecificKey) == Self.monitorLock.label {
+            return try work()
+        }
+        return try Self.monitorLock.sync(execute: work)
+    }
+}
+
+// MARK: - BaseMonitor
+
+public protocol MonitorEvent {
+    static func fatalError(_ message: String) -> Self
+}
+
+public protocol MonitorObserver: AnyObject, Sendable {
+}
+
+/// 基础监听器
+open class BaseMonitor<Event: MonitorEvent> {
+    struct Observer {
+        let observerId: Int
+        weak var observer: MonitorObserver?
+    }
     
     /// 所有观察者
     var arrObservers: [Observer] = []
     var generateObserverId: Int = 0
-    /// 是否使用严格模式，即所有 state 更新必须通过 send、applay、dispach 方法
-    var useStrictMode: Bool = false
-    
-    nonisolated required init() {
+    var notifyObserver: (Event, MonitorObserver) -> Void
+
+    public required init(notifyObserver: @escaping (Event, MonitorObserver) -> Void) {
+        self.notifyObserver = notifyObserver
     }
     
     /// 添加观察者
-    public func addObserver(_ observer: StoreMonitorOberver) -> AnyCancellable {
-        generateObserverId += 1
-        let observerId = generateObserverId
-        arrObservers.append(.init(observerId: generateObserverId, observer: observer))
-        return AnyCancellable { [weak self] in
-            if let index = self?.arrObservers.firstIndex(where: { $0.observerId == observerId}) {
-                self?.arrObservers.remove(at: index)
+    public func addObserver(_ observer: MonitorObserver) -> AnyCancellable {
+        DispatchQueue.syncOnMonitorQueue {
+            generateObserverId += 1
+            let observerId = generateObserverId
+            arrObservers.append(.init(observerId: generateObserverId, observer: observer))
+            return AnyCancellable { [weak self] in
+                if let index = self?.arrObservers.firstIndex(where: { $0.observerId == observerId}) {
+                    self?.arrObservers.remove(at: index)
+                }
             }
         }
     }
     
     /// 记录对应事件，这里只负责将所有事件传递给观察者
-    @usableFromInline
-    func record<State:StorableState>(event: StoreEvent<State>) {
-        guard !arrObservers.isEmpty else { return }
-        arrObservers.forEach { $0.observer?.receiveStoreEvent(event) }
+    public func record(event: Event) {
+        DispatchQueue.syncOnMonitorQueue {
+            guard !arrObservers.isEmpty else { return }
+            arrObservers.forEach {
+                guard let observer = $0.observer else { return }
+                self.notifyObserver(event, observer)
+            }
+        }
     }
     
-    @usableFromInline
-    func fatalError(_ message: String) {
+    public func fatalError(_ message: String) {
         guard !arrObservers.isEmpty else {
             #if DEBUG
             Swift.fatalError(message)
@@ -80,7 +137,6 @@ public final class StoreMonitor {
             return
             #endif
         }
-        let event = StoreEvent<Never>.fatalError(message)
-        arrObservers.forEach { $0.observer?.receiveStoreEvent(event) }
+        record(event: .fatalError(message))
     }
 }

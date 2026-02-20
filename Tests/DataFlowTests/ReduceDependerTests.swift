@@ -13,9 +13,10 @@ class ReduceDependerTests: XCTestCase {
     
     func testDependerDuplicateRegister() {
         StoreCenter.shared.dependerMap = [:]
-        class Oberver: StoreMonitorOberver {
+        @MainActor
+        final class Oberver: StoreMonitorObserver {
             var dependerDuplicateRegisterFatalErrorCall = false
-            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
+            func receiveStoreEvent(_ event: StoreEvent) {
                 if case .fatalError(let message) = event,
                    message == "Duplicate registration of reduce depender '\(NormalDepender.dependerId)'" {
                     dependerDuplicateRegisterFatalErrorCall = true
@@ -67,9 +68,10 @@ class ReduceDependerTests: XCTestCase {
     func testReduceDependerNotRegister() {
         StoreCenter.shared.dependerMap = [:]
         StoreMonitor.shared.arrObservers = []
-        class Oberver: StoreMonitorOberver {
+        @MainActor
+        final class Oberver: StoreMonitorObserver {
             var dependerNotFoundFatalErrorCall = false
-            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
+            func receiveStoreEvent(_ event: StoreEvent) {
                 if case .fatalError(let message) = event,
                    message == "Needed depender '\(NormalDepender.dependerId)' node while reduce state '\(DependState.self)' with action '\(DependAction.test)'" {
                     dependerNotFoundFatalErrorCall = true

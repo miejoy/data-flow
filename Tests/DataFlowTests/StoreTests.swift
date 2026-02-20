@@ -332,9 +332,10 @@ class StoreTests: XCTestCase {
     
     func testStoreObserveRepeat() {
         StoreMonitor.shared.arrObservers = []
-        class Oberver: StoreMonitorOberver {
+        @MainActor
+        final class Oberver: StoreMonitorObserver {
             var repeatOberveCall = false
-            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
+            func receiveStoreEvent(_ event: StoreEvent) {
                 if case .fatalError(let message) = event,
                    message.starts(with: "Repeat observe from ")
                 {
@@ -560,9 +561,10 @@ class StoreTests: XCTestCase {
     func testCyclicObserve() {
         
         StoreMonitor.shared.arrObservers = []
-        class Oberver: StoreMonitorOberver {
+        @MainActor
+        final class Oberver: StoreMonitorObserver {
             var cyclicObserveCall = false
-            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
+            func receiveStoreEvent(_ event: StoreEvent) {
                 if case .cyclicObserve = event {
                     cyclicObserveCall = true
                 }
@@ -588,9 +590,10 @@ class StoreTests: XCTestCase {
     func testCyclicObserveIndirect() {
         
         StoreMonitor.shared.arrObservers = []
-        class Oberver: StoreMonitorOberver {
+        @MainActor
+        final class Oberver: StoreMonitorObserver {
             var cyclicObserveCall = false
-            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
+            func receiveStoreEvent(_ event: StoreEvent) {
                 if case .cyclicObserve = event {
                     cyclicObserveCall = true
                 }
@@ -686,9 +689,10 @@ class StoreTests: XCTestCase {
         StoreMonitor.shared.arrObservers = []
         StoreMonitor.shared.useStrictMode = true
         defer { StoreMonitor.shared.useStrictMode = false }
-        class Oberver: StoreMonitorOberver {
+        @MainActor
+        final class Oberver: StoreMonitorObserver {
             var strictModeFatalErrorCall = false
-            func receiveStoreEvent<State>(_ event: StoreEvent<State>) where State : StorableState {
+            func receiveStoreEvent(_ event: StoreEvent) {
                 if case .fatalError(let message) = event,
                     message == "Never update state directly! Use send/dispatch action instead" {
                     strictModeFatalErrorCall = true
@@ -776,35 +780,36 @@ class StoreTests: XCTestCase {
         let name = "name"
         let normalStore = Store<NormalState>.box(.init(name: name))
         
-        let anyStore = normalStore.eraseToAnyStore()
+        let anyStore = normalStore.eraseToAny()
         
         XCTAssertEqual(anyStore.stateId, normalStore.stateId)
-        XCTAssertNotNil(anyStore.value as? Store<NormalState>)
-        XCTAssertEqual((anyStore.value as? Store<NormalState>)?.name, normalStore.name)
-        XCTAssertEqual((anyStore.value as? Store<NormalState>)?.name, name)
+        XCTAssertNotNil(anyStore.store as? Store<NormalState>)
+        XCTAssertEqual((anyStore.store as? Store<NormalState>)?.name, normalStore.name)
+        XCTAssertEqual((anyStore.store as? Store<NormalState>)?.name, name)
+        XCTAssertEqual((anyStore.state as? NormalState)?.name, name)
         XCTAssertTrue(anyStore.stateType == NormalState.self)
     }
     
     func testStoreStorage() {
         let normalStore = Store<NormalState>.box(.init(name: name))
         
-        XCTAssertNil(normalStore[ViewId.self])
+        XCTAssertNil(normalStore[.viewId])
         
         // 测试普通设置
         let newViewId = "NewViewId"
-        normalStore[ViewId.self] = newViewId
-        XCTAssertEqual(normalStore[ViewId.self], newViewId)
+        normalStore[.viewId] = newViewId
+        XCTAssertEqual(normalStore[.viewId], newViewId)
         
         // 测试读取默认值时设置
         let defaultViewId = "DefaultViewId"
-        XCTAssertEqual(normalStore[ViewId.self, default: defaultViewId], newViewId)
+        XCTAssertEqual(normalStore[.viewId, default: defaultViewId], newViewId)
         
         // 重置一下
-        normalStore[ViewId.self] = nil
-        XCTAssertNil(normalStore[ViewId.self])
+        normalStore[.viewId] = nil
+        XCTAssertNil(normalStore[.viewId])
         
-        XCTAssertEqual(normalStore[ViewId.self, default: defaultViewId], defaultViewId)
-        XCTAssertEqual(normalStore[ViewId.self], defaultViewId)
+        XCTAssertEqual(normalStore[.viewId, default: defaultViewId], defaultViewId)
+        XCTAssertEqual(normalStore[.viewId], defaultViewId)
     }
     
     func testDefaultStoreStorage() {
@@ -812,20 +817,15 @@ class StoreTests: XCTestCase {
         
         let defaultViewId = "DefaultViewId"
         // 首次读取
-        XCTAssertFalse(DefaultViewId.defaultValueCall)
-        XCTAssertEqual(normalStore[DefaultViewId.self], defaultViewId)
-        XCTAssertTrue(DefaultViewId.defaultValueCall)
+        XCTAssertEqual(normalStore[.defaultViewId], defaultViewId)
         
         // 二次读取
-        DefaultViewId.defaultValueCall = false
-        XCTAssertEqual(normalStore[DefaultViewId.self], defaultViewId)
-        XCTAssertFalse(DefaultViewId.defaultValueCall)
+        XCTAssertEqual(normalStore[.defaultViewId], defaultViewId)
         
         // 覆盖后读取
         let newViewId = "NewViewId"
-        normalStore[DefaultViewId.self] = newViewId
-        XCTAssertEqual(normalStore[DefaultViewId.self], newViewId)
-        XCTAssertFalse(DefaultViewId.defaultValueCall)
+        normalStore[.defaultViewId] = newViewId
+        XCTAssertEqual(normalStore[.defaultViewId], newViewId)
     }
     
     func testGetStoreConfig() {
@@ -966,16 +966,12 @@ struct RecurseReduceState: StorableState, ReducerLoadableState, ActionBindable {
     }
 }
 
-enum ViewId: StoreStorageKey { 
-    typealias Value = String
+extension StoreStorageKey where Value == String {
+    static let viewId: Self = .init("viewId")
 }
 
-enum DefaultViewId: DefaultStoreStorageKey {
-    static nonisolated(unsafe) var defaultValueCall: Bool = false
-    static var defaultValue: String {
-        defaultValueCall = true
-        return "DefaultViewId"
-    }
+extension DefaultStoreStorageKey where Value == String {
+    static let defaultViewId: Self = .init("defaultViewId", "DefaultViewId")
 }
 
 extension StoreConfigKey where Value == String {
