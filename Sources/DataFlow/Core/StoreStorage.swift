@@ -18,8 +18,9 @@ public struct StoreStorageKey<Value>: Sendable {
 /// 存储空间使用的带默认值的 Key
 public struct DefaultStoreStorageKey<Value>: @unchecked Sendable {
     let name: String
-    let defaultValue: Value
-    public init(_ name: String, _ defaultValue: Value, _ fileId: String = #fileID, _ line: Int = #line) {
+    // 这里必须每次都通过 block 构造一个，避免不同 store 使用相同默认值实例
+    let defaultValue: () -> Value
+    public init(_ name: String, _ defaultValue: @autoclosure @escaping () -> Value, _ fileId: String = #fileID, _ line: Int = #line) {
         self.name = "\(name)-\(fileId):\(line)"
         self.defaultValue = defaultValue
     }
@@ -36,8 +37,9 @@ public struct StateOnStoreStorageKey<Value, State: StorableState>: Sendable {
 /// 对应状态存储空间使用的带默认值的 Key
 public struct DefaultStateOnStoreStorageKey<Value, State: StorableState>: @unchecked Sendable {
     let name: String
-    let defaultValue: Value
-    public init(_ name: String, _ defaultValue: Value, _ fileId: String = #fileID, _ line: Int = #line) {
+    // 这里必须每次都通过 block 构造一个，避免不同 store 使用相同默认值实例
+    let defaultValue: () -> Value
+    public init(_ name: String, _ defaultValue: @autoclosure @escaping () -> Value, _ fileId: String = #fileID, _ line: Int = #line) {
         self.name = "\(name)-\(fileId):\(line)"
         self.defaultValue = defaultValue
     }
@@ -61,7 +63,7 @@ final class StoreStorage {
             if let value = self.storage[key.name] as? Value {
                 return value
             }
-            let defaultValue = key.defaultValue
+            let defaultValue = key.defaultValue()
             set(key, to: defaultValue)
             return defaultValue
         }
@@ -78,7 +80,7 @@ final class StoreStorage {
             if let value = self.storage[key.name] as? Value {
                 return value
             }
-            let defaultValue = key.defaultValue
+            let defaultValue = key.defaultValue()
             set(key, to: defaultValue)
             return defaultValue
         }
