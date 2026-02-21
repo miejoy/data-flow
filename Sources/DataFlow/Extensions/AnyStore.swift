@@ -34,7 +34,7 @@ protocol StateContainer: Sendable {
 
 extension Store {
     /// 去除存储器指定的状态类型
-    public func eraseToAny() -> AnyStore {
+    public nonisolated func eraseToAny() -> AnyStore {
         AnyStore(store: self)
     }
 }
