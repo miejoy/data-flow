@@ -828,6 +828,44 @@ class StoreTests: XCTestCase {
         XCTAssertEqual(normalStore[.defaultViewId], newViewId)
     }
     
+    func testStateOnStoreStorage() {
+        let normalStore = Store<NormalState>.box(.init(name: name))
+        
+        XCTAssertNil(normalStore[.normalViewId])
+        
+        // 测试普通设置
+        let newViewId = "NewViewId"
+        normalStore[.normalViewId] = newViewId
+        XCTAssertEqual(normalStore[.normalViewId], newViewId)
+        
+        // 测试读取默认值时设置
+        let defaultViewId = "DefaultViewId"
+        XCTAssertEqual(normalStore[.normalViewId, default: defaultViewId], newViewId)
+        
+        // 重置一下
+        normalStore[.normalViewId] = nil
+        XCTAssertNil(normalStore[.normalViewId])
+        
+        XCTAssertEqual(normalStore[.normalViewId, default: defaultViewId], defaultViewId)
+        XCTAssertEqual(normalStore[.normalViewId], defaultViewId)
+    }
+    
+    func testDefaultStateOnStoreStorage() {
+        let normalStore = Store<NormalState>.box(.init(name: name))
+        
+        let defaultViewId = "DefaultNormalViewId"
+        // 首次读取
+        XCTAssertEqual(normalStore[.defaultNormalViewId], defaultViewId)
+        
+        // 二次读取
+        XCTAssertEqual(normalStore[.defaultNormalViewId], defaultViewId)
+        
+        // 覆盖后读取
+        let newViewId = "NewViewId"
+        normalStore[.defaultNormalViewId] = newViewId
+        XCTAssertEqual(normalStore[.defaultNormalViewId], newViewId)
+    }
+    
     func testGetStoreConfig() {
         let configValue = "test123"
         let normalStore = Store<NormalState>.box(.init(name: name), configs: [.make(.testConfig, configValue)])
@@ -972,6 +1010,14 @@ extension StoreStorageKey where Value == String {
 
 extension DefaultStoreStorageKey where Value == String {
     static let defaultViewId: Self = .init("defaultViewId", "DefaultViewId")
+}
+
+extension StateOnStoreStorageKey where Value == String, State == NormalState {
+    static let normalViewId: Self = .init("normalViewId")
+}
+
+extension DefaultStateOnStoreStorageKey where Value == String, State == NormalState {
+    static let defaultNormalViewId: Self = .init("normalViewId", "DefaultNormalViewId")
 }
 
 extension StoreConfigKey where Value == String {
