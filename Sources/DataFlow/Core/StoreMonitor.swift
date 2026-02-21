@@ -35,14 +35,8 @@ public protocol StoreMonitorObserver: MonitorObserver {
 public final class StoreMonitor: BaseMonitor<StoreEvent> {
     public nonisolated(unsafe) static let shared: StoreMonitor = {
         StoreMonitor { event, observer in
-            if Thread.isMainThread {
-                MainActor.assumeIsolated {
-                    (observer as? StoreMonitorObserver)?.receiveStoreEvent(event)
-                }
-            } else {
-                Task { @MainActor in
-                    (observer as? StoreMonitorObserver)?.receiveStoreEvent(event)
-                }
+            DispatchQueue.executeOnMain {
+                (observer as? StoreMonitorObserver)?.receiveStoreEvent(event)
             }
         }
     }()

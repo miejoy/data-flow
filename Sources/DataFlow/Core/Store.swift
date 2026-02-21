@@ -99,16 +99,9 @@ public final class Store<State: StorableState>: ObservableObject {
         self[.stateId] = state.stateId
         // didBoxed 和 StoreMonitor 通知需要在 MainActor 上执行
         // 如果当前已在主线程，直接同步执行；否则异步调度到 MainActor
-        if Thread.isMainThread {
-            MainActor.assumeIsolated {
-                State.didBoxed(on: self)
-                StoreMonitor.shared.record(event: .createStore(self.eraseToAny()))
-            }
-        } else {
-            Task { @MainActor in
-                State.didBoxed(on: self)
-                StoreMonitor.shared.record(event: .createStore(self.eraseToAny()))
-            }
+        DispatchQueue.executeOnMain {
+            State.didBoxed(on: self)
+            StoreMonitor.shared.record(event: .createStore(self.eraseToAny()))
         }
     }
     
@@ -578,17 +571,9 @@ extension Store where State: SharableState {
     /// 配置 useBoxOnShared = true，代表调用方必然重写了 shared 方法 ，并自行管理共享状态存储器生命周期了
     public nonisolated static func box(_ state: State = State(), configs: [StoreConfigPair] = []) -> Self {
         let store = self.init(state: state, configs: configs)
-        if Thread.isMainThread {
-            MainActor.assumeIsolated {
-                if !store[.useBoxOnShared, default: false] {
-                    StoreMonitor.shared.fatalError("'SharableState' cann't use box() directly. Use 'shared' instead or set 'useBoxOnShared' config to 'true'")
-                }
-            }
-        } else {
-            Task { @MainActor in
-                if !store[.useBoxOnShared, default: false] {
-                    StoreMonitor.shared.fatalError("'SharableState' cann't use box() directly. Use 'shared' instead or set 'useBoxOnShared' config to 'true'")
-                }
+        DispatchQueue.executeOnMain {
+            if !store[.useBoxOnShared, default: false] {
+                StoreMonitor.shared.fatalError("'SharableState' cann't use box() directly. Use 'shared' instead or set 'useBoxOnShared' config to 'true'")
             }
         }
         return store

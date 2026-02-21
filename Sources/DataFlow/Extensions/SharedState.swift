@@ -61,14 +61,8 @@ extension Store where State : SharableState {
         guard isNew else { return store }
         
         // 将 upStore 附加逻辑调度到 MainActor 执行
-        if Thread.isMainThread {
-            MainActor.assumeIsolated {
-                attachToUpStore(store)
-            }
-        } else {
-            Task { @MainActor in
-                attachToUpStore(store)
-            }
+        DispatchQueue.executeOnMain {
+            attachToUpStore(store)
         }
         return store
     }

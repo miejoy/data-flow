@@ -6,10 +6,11 @@
 //
 
 import Dispatch
-
-// MARK: - DispatchQueue
+import Foundation
 
 extension DispatchQueue {
+    
+    // MARK: - StoreQueue
     
     static let checkStoreDispatchSpecificKey: DispatchSpecificKey<String> = .init()
     /// 共享 store 创建时使用的锁，目前没有移除共享 store 的方式，后面开发时移除共享 store 必须在主线程，并包上这个锁
@@ -25,5 +26,21 @@ extension DispatchQueue {
             return try work()
         }
         return try Self.storeLock.sync(execute: work)
+    }
+    
+    
+    // MARK: - MainActor
+    
+    // 在 MainActor 隔离环境运行 block
+    public static func executeOnMain(execute: @MainActor @escaping () -> Void) {
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                execute()
+            }
+        } else {
+            Task { @MainActor in
+                execute()
+            }
+        }
     }
 }
