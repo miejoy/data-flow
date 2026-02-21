@@ -105,7 +105,7 @@ open class BaseMonitor<Event: MonitorEvent> {
     }
     
     /// 添加观察者
-    public func addObserver(_ observer: MonitorObserver) -> AnyCancellable {
+    open func addObserver(_ observer: MonitorObserver) -> AnyCancellable {
         DispatchQueue.syncOnMonitorQueue {
             generateObserverId += 1
             let observerId = generateObserverId
