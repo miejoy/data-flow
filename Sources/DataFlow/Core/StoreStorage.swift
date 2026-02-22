@@ -201,8 +201,21 @@ extension Store {
 }
 
 
-// MARK: - Keys
+// MARK: - StateId
 
 extension DefaultStoreStorageKey where Value == String {
     public static let stateId: Self = .init("stateId", "")
+}
+
+extension Store {
+    // 提供非隔离域的 stateId 访问，在主线程访问时可靠的，非主线程访问是原始的
+    nonisolated public var stateId: String {
+        if Thread.isMainThread {
+            MainActor.assumeIsolated {
+                self._state.stateId
+            }
+        } else {
+            self[.stateId]
+        }
+    }
 }
