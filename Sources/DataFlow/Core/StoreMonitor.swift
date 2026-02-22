@@ -75,7 +75,7 @@ extension DispatchQueue {
 
 // MARK: - BaseMonitor
 
-public protocol MonitorEvent {
+public protocol MonitorEvent: Sendable {
     static func fatalError(_ message: String) -> Self
 }
 
