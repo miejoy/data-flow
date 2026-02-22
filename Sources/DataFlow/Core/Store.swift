@@ -97,12 +97,8 @@ public final class Store<State: StorableState>: ObservableObject {
         self.initConfig = .init(configs)
         // 所有状态存到 store，都先将 stateId 存到 store
         self[.stateId] = state.stateId
-        // didBoxed 和 StoreMonitor 通知需要在 MainActor 上执行
-        // 如果当前已在主线程，直接同步执行；否则异步调度到 MainActor
-        DispatchQueue.executeOnMain {
-            State.didBoxed(on: self)
-            StoreMonitor.shared.record(event: .createStore(self.eraseToAny()))
-        }
+        State.didBoxed(on: self)
+        StoreMonitor.shared.record(event: .createStore(self.eraseToAny()))
     }
     
     // MARK: - Get & Set
