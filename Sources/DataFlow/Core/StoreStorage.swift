@@ -18,9 +18,8 @@ public struct StoreStorageKey<Value>: Sendable {
 /// 存储空间使用的带默认值的 Key
 public struct DefaultStoreStorageKey<Value>: @unchecked Sendable {
     let name: String
-    // 这里必须每次都通过 block 构造一个，避免不同 store 使用相同默认值实例
-    let defaultValue: () -> Value
-    public init(_ name: String, _ defaultValue: @autoclosure @escaping () -> Value, _ fileId: String = #fileID, _ line: Int = #line) {
+    let defaultValue: Value
+    public init(_ name: String, _ defaultValue: Value, _ fileId: String = #fileID, _ line: Int = #line) {
         self.name = "\(name)-\(fileId):\(line)"
         self.defaultValue = defaultValue
     }
@@ -37,9 +36,8 @@ public struct StateOnStoreStorageKey<Value, State: StorableState>: Sendable {
 /// 对应状态存储空间使用的带默认值的 Key
 public struct DefaultStateOnStoreStorageKey<Value, State: StorableState>: @unchecked Sendable {
     let name: String
-    // 这里必须每次都通过 block 构造一个，避免不同 store 使用相同默认值实例
-    let defaultValue: () -> Value
-    public init(_ name: String, _ defaultValue: @autoclosure @escaping () -> Value, _ fileId: String = #fileID, _ line: Int = #line) {
+    let defaultValue: Value
+    public init(_ name: String, _ defaultValue: Value, _ fileId: String = #fileID, _ line: Int = #line) {
         self.name = "\(name)-\(fileId):\(line)"
         self.defaultValue = defaultValue
     }
@@ -63,7 +61,7 @@ final class StoreStorage {
             if let value = self.storage[key.name] as? Value {
                 return value
             }
-            let defaultValue = key.defaultValue()
+            let defaultValue = key.defaultValue
             set(key, to: defaultValue)
             return defaultValue
         }
@@ -80,50 +78,40 @@ final class StoreStorage {
             if let value = self.storage[key.name] as? Value {
                 return value
             }
-            let defaultValue = key.defaultValue()
+            let defaultValue = key.defaultValue
             set(key, to: defaultValue)
             return defaultValue
         }
     }
 
-    func set<Value>(_ key: StoreStorageKey<Value>, to value: Value?) {
+    /// 内部设置方法
+    private func _set(_ name: String, to value: Any?) {
         DispatchQueue.syncOnStoreQueue {
+            // 临时持有旧值，避免设置新值时旧值立马释放，导致释放流程继续读取 storage
+            let old = self.storage[name]
             if let value = value {
-                self.storage[key.name] = value
-            } else if self.storage[key.name] != nil {
-                self.storage.removeValue(forKey: key.name)
+                self.storage[name] = value
+            } else if old != nil {
+                self.storage.removeValue(forKey: name)
             }
+            _ = old
         }
+    }
+
+    func set<Value>(_ key: StoreStorageKey<Value>, to value: Value?) {
+        _set(key.name, to: value)
     }
     
     func set<Value>(_ key: DefaultStoreStorageKey<Value>, to value: Value?) {
-        DispatchQueue.syncOnStoreQueue {
-            if let value = value {
-                self.storage[key.name] = value
-            } else if self.storage[key.name] != nil {
-                self.storage.removeValue(forKey: key.name)
-            }
-        }
+        _set(key.name, to: value)
     }
     
     func set<Value, State: StorableState>(_ key: StateOnStoreStorageKey<Value, State>, to value: Value?) {
-        DispatchQueue.syncOnStoreQueue {
-            if let value = value {
-                self.storage[key.name] = value
-            } else if self.storage[key.name] != nil {
-                self.storage.removeValue(forKey: key.name)
-            }
-        }
+        _set(key.name, to: value)
     }
     
     func set<Value, State: StorableState>(_ key: DefaultStateOnStoreStorageKey<Value, State>, to value: Value?) {
-        DispatchQueue.syncOnStoreQueue {
-            if let value = value {
-                self.storage[key.name] = value
-            } else if self.storage[key.name] != nil {
-                self.storage.removeValue(forKey: key.name)
-            }
-        }
+        _set(key.name, to: value)
     }
 }
 
