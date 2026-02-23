@@ -73,12 +73,10 @@ extension StateContainable {
 }
 
 extension ReducerLoadableState {
+    @MainActor
     public static func didBoxed(on store: Store<some StorableState>) {
         guard let store = store as? Store<Self> else { return }
-            
-        DispatchQueue.executeOnMain {
-            loadReducers(on: store)
-        }
+        loadReducers(on: store)
     }
 }
 
