@@ -97,8 +97,11 @@ public final class Store<State: StorableState>: ObservableObject {
         self.initConfig = .init(configs)
         // 所有状态存到 store，都先将 stateId 存到 store
         self[.stateId] = state.stateId
-        State.didBoxed(on: self, state: state)
-        StoreMonitor.shared.record(event: .createStore(self.eraseToAny()))
+        State.assembly(store: self, with: state)
+        DispatchQueue.executeOnMain {
+            State.didBoxed(on: self)
+            StoreMonitor.shared.record(event: .createStore(self.eraseToAny()))
+        }
     }
     
     // MARK: - Get & Set

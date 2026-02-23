@@ -12,9 +12,14 @@ import Foundation
 public protocol StorableState: Sendable {
     /// 状态 ID，默认为结构体名称
     var stateId: String { get }
-    /// 被装载到 Store 时调用，尽量不要重写他，如果确实要重写，请注意 ReducerLoadableState 相关方法的调用，以及线程问题
-    /// 由于 store 中的 state 在隔离域中，不方便使用，这里提供原始的 state，只用来读取部分参数
-    static func didBoxed(on store: Store<some StorableState>, state: some StorableState)
+    /// 使用对应 state 装配 store，主要是在非隔离环境将 state 的部分值缓存到 store 中，方便在非隔离环境使用，尽量缓存不会变化的值。
+    /// 该方法只在 store 初始化时调用，其他地方不要调用，该方法会在 didBoxed 之前调用
+    /// 这里使用 some StorableState 而不是用 Self 的原因是，如果使用 Self，其他地方在使用 StorableState 时，必须用 any StorableState，且在传入时必须明确类型
+    static func assembly(store: Store<some StorableState>, with state: some StorableState)
+    /// 被装载到 Store 时调用，尽量不要重写他，如果确实要重写，请注意 ReducerLoadableState 相关方法的调用
+    /// 该方法只在 store 初始化时调用，其他地方不要调用
+    @MainActor
+    static func didBoxed(on store: Store<some StorableState>)
 }
 
 /// 可直接初始化的状态
@@ -51,7 +56,11 @@ extension StorableState {
         String(describing: Self.self)
     }
     
-    public static func didBoxed(on store: Store<some StorableState>, state: some StorableState) {
+    public static func assembly(store: Store<some StorableState>, with state: some StorableState) {
+    }
+    
+    @MainActor
+    public static func didBoxed(on store: Store<some StorableState>) {
     }
 }
 
@@ -64,7 +73,7 @@ extension StateContainable {
 }
 
 extension ReducerLoadableState {
-    public static func didBoxed(on store: Store<some StorableState>, state: some StorableState) {
+    public static func didBoxed(on store: Store<some StorableState>) {
         guard let store = store as? Store<Self> else { return }
             
         DispatchQueue.executeOnMain {
