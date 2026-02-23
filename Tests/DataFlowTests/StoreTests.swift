@@ -48,7 +48,7 @@ class StoreTests: XCTestCase {
         let saveSubStateAfter = containStore.state.subStates[subStore.state.stateId]
         XCTAssertNotNil(saveSubStateAfter)
         
-        let subsribe = containStore.objectWillChange.sink { (_) in
+        let subscribe = containStore.objectWillChange.sink { (_) in
             containGetCall = true
         }
         
@@ -58,7 +58,7 @@ class StoreTests: XCTestCase {
         
         XCTAssert(containGetCall)
         
-        subsribe.cancel()
+        subscribe.cancel()
         
         // 确保新值在上级被设置了
         let saveSubStateChange = containStore.state.subStates[subStore.state.stateId] as? ContainSubState
@@ -174,18 +174,18 @@ class StoreTests: XCTestCase {
         let normalStore = Store<NormalState>.box(NormalState())
         var reducerCall = false
         var isMainThread = false
-        let expection = expectation(description: "This reducer should be call in main thread")
+        let expectation = expectation(description: "This reducer should be called in main thread")
         normalStore.register { (state, action: SpecificAction) in
             reducerCall = true
             isMainThread = Thread.isMainThread
-            expection.fulfill()
+            expectation.fulfill()
         }
         
         DispatchQueue.global().async {
             normalStore.dispatch(action: SpecificAction.specific)
         }
         
-        wait(for: [expection], timeout: 10)
+        wait(for: [expectation], timeout: 10)
         
         XCTAssert(reducerCall)
         XCTAssert(isMainThread)
@@ -197,18 +197,18 @@ class StoreTests: XCTestCase {
         let specificStore = Store<SpecificState>.box(SpecificState())
         var reducerCall = false
         var isMainThread = false
-        let expection = expectation(description: "This reducer should be call in main thread")
+        let expectation = expectation(description: "This reducer should be called in main thread")
         specificStore.register { (state, action: SpecificAction) in
             reducerCall = true
             isMainThread = Thread.isMainThread
-            expection.fulfill()
+            expectation.fulfill()
         }
         
         DispatchQueue.global().async {
             specificStore.dispatch(action: .specific)
         }
         
-        wait(for: [expection], timeout: 10)
+        wait(for: [expectation], timeout: 10)
         
         XCTAssert(reducerCall)
         XCTAssert(isMainThread)
@@ -333,36 +333,36 @@ class StoreTests: XCTestCase {
     func testStoreObserveRepeat() {
         StoreMonitor.shared.arrObservers = []
         @MainActor
-        final class Oberver: StoreMonitorObserver {
-            var repeatOberveCall = false
+        final class Observer: StoreMonitorObserver {
+            var repeatObserveCall = false
             func receiveStoreEvent(_ event: StoreEvent) {
                 if case .fatalError(let message) = event,
                    message.starts(with: "Repeat observe from ")
                 {
-                    repeatOberveCall = true
+                    repeatObserveCall = true
                 }
             }
         }
         
-        let oberver = Oberver()
-        let cancellable = StoreMonitor.shared.addObserver(oberver)
+        let observer = Observer()
+        let cancellable = StoreMonitor.shared.addObserver(observer)
         
         let firstStore: Store<ObserveState> = Store<ObserveState>()
         let secondStore = Store<ObserveState>()
         
         firstStore.observe(store: secondStore) { _,_ in}
-        XCTAssert(!oberver.repeatOberveCall)
+        XCTAssert(!observer.repeatObserveCall)
         
         firstStore.observe(store: secondStore) { _,_ in}
-        XCTAssert(oberver.repeatOberveCall)
+        XCTAssert(observer.repeatObserveCall)
         
         
-        oberver.repeatOberveCall = false
+        observer.repeatObserveCall = false
         firstStore.observe(store: secondStore, of: \.name) { _,_ in}
-        XCTAssert(!oberver.repeatOberveCall)
+        XCTAssert(!observer.repeatObserveCall)
         
         firstStore.observe(store: secondStore, of: \.name) { _,_ in}
-        XCTAssert(oberver.repeatOberveCall)
+        XCTAssert(observer.repeatObserveCall)
         
         cancellable.cancel()
     }
@@ -428,7 +428,7 @@ class StoreTests: XCTestCase {
         XCTAssert(!observeValueCall)
     }
         
-    func testCancelObserverWhenDestory() {
+    func testCancelObserverWhenDestroy() {
         var firstStore: Store<NormalState>? = Store<NormalState>()
         let secondStore = Store<NormalState>()
         XCTAssertEqual(secondStore.arrObservers.count, 0)
@@ -462,7 +462,7 @@ class StoreTests: XCTestCase {
         XCTAssertEqual(observerCall, false)
         
         normalStore.register { (state, action: AnyAction) in
-            // 这里即使不对 state 做任何操作，对应 abserver 也会被调用，这个 & 机制问题
+            // 这里即使不对 state 做任何操作，对应 observer 也会被调用，这个 & 机制问题
             state.name = "new"
             reduceCall = true
         }
@@ -562,7 +562,7 @@ class StoreTests: XCTestCase {
         
         StoreMonitor.shared.arrObservers = []
         @MainActor
-        final class Oberver: StoreMonitorObserver {
+        final class Observer: StoreMonitorObserver {
             var cyclicObserveCall = false
             func receiveStoreEvent(_ event: StoreEvent) {
                 if case .cyclicObserve = event {
@@ -570,19 +570,19 @@ class StoreTests: XCTestCase {
                 }
             }
         }
-        let oberver = Oberver()
-        let cancellable = StoreMonitor.shared.addObserver(oberver)
+        let observer = Observer()
+        let cancellable = StoreMonitor.shared.addObserver(observer)
         
         let fromStore = Store<NormalState>()
         let toStore = Store<SpecificState>.box(SpecificState())
         
-        XCTAssert(!oberver.cyclicObserveCall)
+        XCTAssert(!observer.cyclicObserveCall)
         
         toStore.observe(store: fromStore) { new,old in }
-        XCTAssert(!oberver.cyclicObserveCall)
+        XCTAssert(!observer.cyclicObserveCall)
         
         fromStore.observe(store: toStore) { new,old in }
-        XCTAssert(oberver.cyclicObserveCall)
+        XCTAssert(observer.cyclicObserveCall)
         
         cancellable.cancel()
     }
@@ -591,7 +591,7 @@ class StoreTests: XCTestCase {
         
         StoreMonitor.shared.arrObservers = []
         @MainActor
-        final class Oberver: StoreMonitorObserver {
+        final class Observer: StoreMonitorObserver {
             var cyclicObserveCall = false
             func receiveStoreEvent(_ event: StoreEvent) {
                 if case .cyclicObserve = event {
@@ -599,8 +599,8 @@ class StoreTests: XCTestCase {
                 }
             }
         }
-        let oberver = Oberver()
-        let cancellable = StoreMonitor.shared.addObserver(oberver)
+        let observer = Observer()
+        let cancellable = StoreMonitor.shared.addObserver(observer)
         
         let topStore = Store<NormalState>()
         let middleStore = Store<ContainState>.box(ContainState())
@@ -611,21 +611,21 @@ class StoreTests: XCTestCase {
         var isBottomObserverTop =  Store<ContainSubState>.isToObserveFrom(toId: ObjectIdentifier(bottomStore), fromId: ObjectIdentifier(topStore))
         XCTAssert(!isTopObserverBottom)
         XCTAssert(!isBottomObserverTop)
-        XCTAssert(!oberver.cyclicObserveCall)
+        XCTAssert(!observer.cyclicObserveCall)
         
         topStore.observe(store: middleStore) { new,old in }
-        XCTAssert(!oberver.cyclicObserveCall)
+        XCTAssert(!observer.cyclicObserveCall)
         
         middleStore.add(subStore: bottomStore)
         middleStore.observe(store: otherStore) { new, old in }
-        XCTAssert(!oberver.cyclicObserveCall)
+        XCTAssert(!observer.cyclicObserveCall)
         isTopObserverBottom = Store<NormalState>.isToObserveFrom(toId: ObjectIdentifier(topStore), fromId: ObjectIdentifier(bottomStore))
         isBottomObserverTop =  Store<ContainSubState>.isToObserveFrom(toId: ObjectIdentifier(bottomStore), fromId: ObjectIdentifier(topStore))
         XCTAssert(isTopObserverBottom)
         XCTAssert(!isBottomObserverTop)
         
         bottomStore.observe(store: topStore) { new, old in }
-        XCTAssert(oberver.cyclicObserveCall)
+        XCTAssert(observer.cyclicObserveCall)
         isTopObserverBottom = Store<NormalState>.isToObserveFrom(toId: ObjectIdentifier(topStore), fromId: ObjectIdentifier(bottomStore))
         isBottomObserverTop =  Store<ContainSubState>.isToObserveFrom(toId: ObjectIdentifier(bottomStore), fromId: ObjectIdentifier(topStore))
         XCTAssert(isTopObserverBottom)
@@ -690,7 +690,7 @@ class StoreTests: XCTestCase {
         StoreMonitor.shared.useStrictMode = true
         defer { StoreMonitor.shared.useStrictMode = false }
         @MainActor
-        final class Oberver: StoreMonitorObserver {
+        final class Observer: StoreMonitorObserver {
             var strictModeFatalErrorCall = false
             func receiveStoreEvent(_ event: StoreEvent) {
                 if case .fatalError(let message) = event,
@@ -699,23 +699,23 @@ class StoreTests: XCTestCase {
                 }
             }
         }
-        let oberver = Oberver()
-        let cancellable = StoreMonitor.shared.addObserver(oberver)
+        let observer = Observer()
+        let cancellable = StoreMonitor.shared.addObserver(observer)
         
         let normalStore = Store<NormalState>()
         
-        XCTAssert(!oberver.strictModeFatalErrorCall)
+        XCTAssert(!observer.strictModeFatalErrorCall)
         normalStore.state.name = ""
-        XCTAssert(oberver.strictModeFatalErrorCall)
+        XCTAssert(observer.strictModeFatalErrorCall)
         
-        oberver.strictModeFatalErrorCall = false
+        observer.strictModeFatalErrorCall = false
         normalStore.name = ""
-        XCTAssert(oberver.strictModeFatalErrorCall)
+        XCTAssert(observer.strictModeFatalErrorCall)
         
         let subscriptStore = Store<SubscriptState>()
-        oberver.strictModeFatalErrorCall = false
+        observer.strictModeFatalErrorCall = false
         subscriptStore.normalState.name = ""
-        XCTAssert(oberver.strictModeFatalErrorCall)
+        XCTAssert(observer.strictModeFatalErrorCall)
        
         cancellable.cancel()
     }
@@ -914,7 +914,7 @@ struct InitReducerState : UseInitializableState, ReducerLoadableState {
 
 struct ContainState : StorableState, StateContainable {
     
-    var subStates: [String : any StorableState] = [:]
+    var subStates: [String : StorableState] = [:]
     
     typealias UpState = AppState
 }

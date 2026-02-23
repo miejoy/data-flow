@@ -75,10 +75,12 @@ extension DispatchQueue {
 
 // MARK: - BaseMonitor
 
+/// 监听器可接受事件
 public protocol MonitorEvent: Sendable {
     static func fatalError(_ message: String) -> Self
 }
 
+/// 监听器观察者
 public protocol MonitorObserver: AnyObject, Sendable {
 }
 
@@ -123,6 +125,7 @@ open class BaseMonitor<Event: MonitorEvent> {
         }
     }
     
+    /// 抛出致命异常
     public func fatalError(_ message: String) {
         guard !arrObservers.isEmpty else {
             #if DEBUG

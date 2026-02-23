@@ -66,25 +66,25 @@ class SharedStateTests: XCTestCase {
         
         StoreMonitor.shared.arrObservers = []
         @MainActor
-        final class Oberver: StoreMonitorObserver {
+        final class Observer: StoreMonitorObserver {
             var duplicateFatalErrorCall = false
             func receiveStoreEvent(_ event: StoreEvent) {
                 if case .fatalError(let message) = event,
                     message == ("Attach State[DuplicateSharedState] to UpState[AppState] " +
                                 "with stateId[NormalSharedState] failed: " +
-                                "exist State[NormalSharedState] with same stateId!") {
+                                "exists State[NormalSharedState] with same stateId!") {
                     duplicateFatalErrorCall = true
                 }
             }
         }
-        let oberver = Oberver()
-        let cancellable = StoreMonitor.shared.addObserver(oberver)
+        let observer = Observer()
+        let cancellable = StoreMonitor.shared.addObserver(observer)
         
         _ = Store<NormalSharedState>.shared
-        XCTAssert(!oberver.duplicateFatalErrorCall)
+        XCTAssert(!observer.duplicateFatalErrorCall)
         
         _ = Store<DuplicateSharedState>.shared
-        XCTAssert(oberver.duplicateFatalErrorCall)
+        XCTAssert(observer.duplicateFatalErrorCall)
         
         cancellable.cancel()
     }
@@ -131,25 +131,25 @@ class SharedStateTests: XCTestCase {
     func testUseBoxOnSharableState() {
         StoreMonitor.shared.arrObservers = []
         @MainActor
-        final class Oberver: StoreMonitorObserver {
+        final class Observer: StoreMonitorObserver {
             var duplicateFatalErrorCall = false
             func receiveStoreEvent(_ event: StoreEvent) {
                 if case .fatalError(let message) = event,
-                    message == ("'SharableState' cann't use box() directly. " +
+                    message == ("'SharableState' can't use box() directly. " +
                                 "Use 'shared' instead or set 'useBoxOnShared' config to 'true'") {
                     duplicateFatalErrorCall = true
                 }
             }
         }
-        let oberver = Oberver()
-        let cancellable = StoreMonitor.shared.addObserver(oberver)
+        let observer = Observer()
+        let cancellable = StoreMonitor.shared.addObserver(observer)
                 
         // 配置 useBoxOnShared，不会 fatalError
         _ = Store<NormalSharedState>.box(.init(), configs: [.make(.useBoxOnShared, true)])
-        XCTAssert(!oberver.duplicateFatalErrorCall)
+        XCTAssert(!observer.duplicateFatalErrorCall)
         
         _ = Store<NormalSharedState>.box()
-        XCTAssert(oberver.duplicateFatalErrorCall)
+        XCTAssert(observer.duplicateFatalErrorCall)
         
         cancellable.cancel()
     }

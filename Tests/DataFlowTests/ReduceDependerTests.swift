@@ -14,7 +14,7 @@ class ReduceDependerTests: XCTestCase {
     func testDependerDuplicateRegister() {
         StoreCenter.shared.dependerMap = [:]
         @MainActor
-        final class Oberver: StoreMonitorObserver {
+        final class Observer: StoreMonitorObserver {
             var dependerDuplicateRegisterFatalErrorCall = false
             func receiveStoreEvent(_ event: StoreEvent) {
                 if case .fatalError(let message) = event,
@@ -23,14 +23,14 @@ class ReduceDependerTests: XCTestCase {
                 }
             }
         }
-        let oberver = Oberver()
-        let cancellable = StoreMonitor.shared.addObserver(oberver)
+        let observer = Observer()
+        let cancellable = StoreMonitor.shared.addObserver(observer)
         
         let depender = NormalDepender()
-        StoreCenter.shared.registeReduceDepender(depender)
-        XCTAssertEqual(oberver.dependerDuplicateRegisterFatalErrorCall, false)
-        StoreCenter.shared.registeReduceDepender(depender)
-        XCTAssertEqual(oberver.dependerDuplicateRegisterFatalErrorCall, true)
+        StoreCenter.shared.registerReduceDepender(depender)
+        XCTAssertEqual(observer.dependerDuplicateRegisterFatalErrorCall, false)
+        StoreCenter.shared.registerReduceDepender(depender)
+        XCTAssertEqual(observer.dependerDuplicateRegisterFatalErrorCall, true)
         
         cancellable.cancel()
     }
@@ -39,7 +39,7 @@ class ReduceDependerTests: XCTestCase {
         StoreCenter.shared.dependerMap = [:]
         let dependStore = Store<DependState>.box(.init())
         let depender = NormalDepender()
-        StoreCenter.shared.registeReduceDepender(depender)
+        StoreCenter.shared.registerReduceDepender(depender)
         
         depender.getCall = false
         XCTAssertEqual(dependStore.getCall, false)
@@ -54,7 +54,7 @@ class ReduceDependerTests: XCTestCase {
         StoreCenter.shared.dependerMap = [:]
         let dependStore = Store<DependState>.box(.init())
         let depender = NormalDepender()
-        StoreCenter.shared.registeReduceDepender(depender)
+        StoreCenter.shared.registerReduceDepender(depender)
         
         depender.getCall = true
         XCTAssertEqual(dependStore.getCall, false)
@@ -69,17 +69,17 @@ class ReduceDependerTests: XCTestCase {
         StoreCenter.shared.dependerMap = [:]
         StoreMonitor.shared.arrObservers = []
         @MainActor
-        final class Oberver: StoreMonitorObserver {
+        final class Observer: StoreMonitorObserver {
             var dependerNotFoundFatalErrorCall = false
             func receiveStoreEvent(_ event: StoreEvent) {
                 if case .fatalError(let message) = event,
-                   message == "Needed depender '\(NormalDepender.dependerId)' node while reduce state '\(DependState.self)' with action '\(DependAction.test)'" {
+                   message == "Needed depender '\(NormalDepender.dependerId)' not found while reduce state '\(DependState.self)' with action '\(DependAction.test)'" {
                     dependerNotFoundFatalErrorCall = true
                 }
             }
         }
-        let oberver = Oberver()
-        let cancellable = StoreMonitor.shared.addObserver(oberver)
+        let observer = Observer()
+        let cancellable = StoreMonitor.shared.addObserver(observer)
         
         let dependStore = Store<DependState>.box(.init())
 
@@ -88,7 +88,7 @@ class ReduceDependerTests: XCTestCase {
         dependStore.send(action: .test)
         
         XCTAssertEqual(dependStore.getCall, false)
-        XCTAssertEqual(oberver.dependerNotFoundFatalErrorCall, true)
+        XCTAssertEqual(observer.dependerNotFoundFatalErrorCall, true)
         
         cancellable.cancel()
     }
@@ -98,8 +98,8 @@ class ReduceDependerTests: XCTestCase {
         let dependStore = Store<MultiDependState>.box(.init())
         let firstDepender = NormalDepender()
         let secondDepender = SecondDepender()
-        StoreCenter.shared.registeReduceDepender(firstDepender)
-        StoreCenter.shared.registeReduceDepender(secondDepender)
+        StoreCenter.shared.registerReduceDepender(firstDepender)
+        StoreCenter.shared.registerReduceDepender(secondDepender)
         
         firstDepender.getCall = false
         secondDepender.getCall = false
@@ -117,8 +117,8 @@ class ReduceDependerTests: XCTestCase {
         let dependStore = Store<MultiDependState>.box(.init())
         let firstDepender = NormalDepender()
         let secondDepender = SecondDepender()
-        StoreCenter.shared.registeReduceDepender(firstDepender)
-        StoreCenter.shared.registeReduceDepender(secondDepender)
+        StoreCenter.shared.registerReduceDepender(firstDepender)
+        StoreCenter.shared.registerReduceDepender(secondDepender)
         
         firstDepender.getCall = false
         secondDepender.getCall = true

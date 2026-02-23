@@ -32,7 +32,7 @@ public protocol UseInitializableState: InitializableState {}
 
 /// 可容纳子状态的
 public protocol StateContainable: Sendable {
-    var subStates : [String: any StorableState] { get set }
+    var subStates : [String: StorableState] { get set }
 }
 
 /// 可附加于其他状态的状态
@@ -91,7 +91,7 @@ extension Never : StorableState {
 }
 
 extension Never : StateContainable {
-    public var subStates: [String : any StorableState] {
+    public var subStates: [String : StorableState] {
         get { fatalError("Never can not get subStates") }
         set { fatalError("Never can not set subStates") }
     }

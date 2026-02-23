@@ -4,7 +4,7 @@
 //
 //  Created by 黄磊 on 2020-06-21.
 //  Copyright © 2020 Miejoy. All rights reserved.
-//  事件，一般用枚举。具有唯一性和可处理行
+//  事件，一般用枚举。具有唯一性和可处理性
 
 import Foundation
 

@@ -52,6 +52,8 @@ final class StoreStorage {
     
     var storage: [String: Any] = [:]
     
+    // MARK: - Get
+    
     func get<Value>(_ key: StoreStorageKey<Value>) -> Value? {
         DispatchQueue.syncOnStoreQueue {
             return self.storage[key.name] as? Value
@@ -85,6 +87,8 @@ final class StoreStorage {
             return defaultValue
         }
     }
+    
+    // MARK: - Set
 
     /// 内部设置方法
     private func _set(_ name: String, to value: Any?) {
@@ -204,11 +208,11 @@ extension Store {
 // MARK: - StateId
 
 extension DefaultStoreStorageKey where Value == String {
-    public static let stateId: Self = .init("stateId", "")
+    static let stateId: Self = .init("stateId", "")
 }
 
 extension Store {
-    // 提供非隔离域的 stateId 访问，在主线程访问时可靠的，非主线程访问是原始的
+    // 提供非隔离域的 stateId 访问，在主线程访问时是可靠的，非主线程访问是原始的
     nonisolated public var stateId: String {
         if Thread.isMainThread {
             MainActor.assumeIsolated {

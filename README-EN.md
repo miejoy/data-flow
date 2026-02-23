@@ -2,9 +2,9 @@
 
 > [中文版](https://github.com/miejoy/data-flow)
 
-DataFlow defines how to store, pass and handle data in App. It also defines several base types and protocols which are easy to use and can make data flow in App build quickly and clearly. The State defined in this module can be used in SwiftUI smoothly and update UI automatically when data changed.
+DataFlow defines how to store, pass and handle data in App. It also defines several base types and protocols which are easy to use and can make building data flow in App quick and clear. The State defined in this module can be used in SwiftUI smoothly and update UI automatically when data changed.
 
-DtatFlow is in the **State** layer of a custom RSV(Resource & State & View) pattern design. It provides data support and interactive support for **View**. It also works with **Resource** layer to load resources, including device resources, network resources, etc.
+DataFlow is in the **State** layer of a custom RSV(Resource & State & View) pattern design. It provides data support and interactive support for **View**. It also works with **Resource** layer to load resources, including device resources, network resources, etc.
 
 [![Swift](https://github.com/miejoy/data-flow/actions/workflows/test.yml/badge.svg)](https://github.com/miejoy/data-flow/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/miejoy/data-flow/branch/main/graph/badge.svg)](https://codecov.io/gh/miejoy/data-flow)
@@ -19,30 +19,30 @@ DtatFlow is in the **State** layer of a custom RSV(Resource & State & View) patt
 
 ## Introduction
 
-There are several concepts need to understand first:
+There are several concepts that need to be understood first:
 
 - State: value type, can be all kinds of storable data
-- Store: reference type, holds all the states, provides state to bind view, handles and dispatchs actions
-- Action: event, usually an enumeration. it must be unique and handlable
+- Store: reference type, holds all the states, provides state to bind view, handles and dispatches actions
+- Action: event, usually an enumeration. it must be unique and handleable
 
 State is actually a set of protocols:
 
 - Basic Protocols
-  - StorableState: states that are storable. it is most foundational one
+  - StorableState: states that are storable. it is the most foundational one
   - InitializableState: states can be initialized directly
-  - StateContainable: states that can have substate
+  - StateContainable: states that can have sub-states
   - AttachableState: states that can be attached to other states
   - ReducerLoadableState: states that can load reducer automatically
 
 - Extra Protocols
   - SharableState: states that are sharable
-  - FullSharableState: states that are sharable with fully capability, combine with SharableState, ReducerLoadableState, ActionBindable
+  - FullSharableState: states that are sharable with full capability, combined with SharableState, ReducerLoadableState, ActionBindable
 
 ## Installation
 
 ### [Swift Package Manager](https://github.com/apple/swift-package-manager)
 
-Add following dependency at Package.swift file:
+Add the following dependency at Package.swift file:
 
 ```swift
 dependencies: [
@@ -82,7 +82,7 @@ dependencies: [
 
 ### SharableState
 
-SharableState can be used cross all views
+SharableState can be used across all views
 
 1. define state
 
@@ -122,7 +122,7 @@ SharableState can be used cross all views
     }
     ```
 
-2. write a extension for state to comfirm ActionBindable protocol and sign that action to BindAction
+2. write an extension for state to confirm ActionBindable protocol and sign that action to BindAction
 
     ```swift
     extension NormalSharedState : ActionBindable {
@@ -130,7 +130,7 @@ SharableState can be used cross all views
     }
     ```
 
-3. write a extension for state to comfirm ReducerLoadableState protocol and implement the action
+3. write an extension for state to confirm ReducerLoadableState protocol and implement the action
 
     ```swift
     extension NormalSharedState : ReducerLoadableState {

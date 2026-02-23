@@ -37,7 +37,7 @@ extension Store where State : SharableState {
             StoreMonitor.shared.fatalError(
                 "Attach State[\(String(describing: State.self))] to UpState[\(String(describing: State.UpState.self))] " +
                 "with stateId[\(store.state.stateId)] failed: " +
-                "exist State[\(String(describing: type(of: existState)))] with same stateId!"
+                "exists State[\(String(describing: type(of: existState)))] with same stateId!"
             )
         }
         upStore.add(subStore: store)

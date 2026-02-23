@@ -25,11 +25,6 @@ public struct AnyStore: Sendable {
     }
 }
 
-protocol StateContainer: Sendable {
-    @MainActor
-    var innerState: StorableState { get }
-}
-
 // MARK: - Extension Store
 
 extension Store {
@@ -39,8 +34,15 @@ extension Store {
     }
 }
 
+// MARK: - StateContainer
+
+protocol StateContainer: Sendable {
+    @MainActor
+    var innerState: StorableState { get }
+}
+
 extension Store: StateContainer {
-    public var innerState: StorableState {
+    var innerState: StorableState {
         state
     }
 }

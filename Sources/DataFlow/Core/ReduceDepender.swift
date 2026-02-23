@@ -7,6 +7,7 @@
 
 import Foundation
 
+/// 处理过程依赖者Id
 public struct ReduceDependerId: Hashable, ExpressibleByStringLiteral, CustomStringConvertible, Sendable {
     var dependerId: String
     public init(stringLiteral value: String) {
@@ -27,6 +28,7 @@ public protocol ReduceDepender: AnyObject {
 }
 
 extension ReduceDepender {
+    /// 依赖者ID，默认使用类名
     public static var dependerId: ReduceDependerId {
         .init(stringLiteral: String(describing: Self.self))
     }

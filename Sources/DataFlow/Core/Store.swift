@@ -460,9 +460,9 @@ public final class Store<State: StorableState>: ObservableObject {
         }
     }
     
-    // MARK: - Notify Chage
+    // MARK: - Notify Change
     
-    /// 更新状态并通知监听着
+    /// 更新状态并通知监听者
     func updateStateWithNotify(_ state: State, on keyPath: AnyKeyPath? = nil) {
         let oldState = _state
         objectWillChange.send()
@@ -478,7 +478,7 @@ public final class Store<State: StorableState>: ObservableObject {
         }
     }
     
-    /// 通知所有属性监听着
+    /// 通知所有属性监听者
     func notifyChange(to newState: State, _ oldState: State) {
         for item in mapValueObservers {
             guard let newValue = newState[keyPath: item.key],
@@ -491,7 +491,7 @@ public final class Store<State: StorableState>: ObservableObject {
         }
     }
     
-    /// 通知指定属性监听着
+    /// 通知指定属性监听者
     func notifyValueChange(to newState: State, _ oldState: State, on keyPath: AnyKeyPath) {
         guard let arrValueObservers = mapValueObservers[keyPath],
               let newValue = newState[keyPath: keyPath],
@@ -572,7 +572,7 @@ extension Store where State: SharableState {
         let store = self.init(state: state, configs: configs)
         DispatchQueue.executeOnMain {
             if !store[.useBoxOnShared, default: false] {
-                StoreMonitor.shared.fatalError("'SharableState' cann't use box() directly. Use 'shared' instead or set 'useBoxOnShared' config to 'true'")
+                StoreMonitor.shared.fatalError("'SharableState' can't use box() directly. Use 'shared' instead or set 'useBoxOnShared' config to 'true'")
             }
         }
         return store
