@@ -2,7 +2,7 @@
 
 > [中文版](https://github.com/miejoy/data-flow)
 
-DataFlow defines how to store, pass and handle data in App. It also defines several base types and protocols which are easy to use and can make building data flow in App quick and clear. The State defined in this module can be used in SwiftUI smoothly and update UI automatically when data changed.
+DataFlow defines how to store, pass and handle data in App. It also defines several base types and protocols which are easy to use and can make building data flow in App quick and clear. The State defined in this module can be used in SwiftUI smoothly and update UI automatically when data changes.
 
 DataFlow is in the **State** layer of a custom RSV(Resource & State & View) pattern design. It provides data support and interactive support for **View**. It also works with **Resource** layer to load resources, including device resources, network resources, etc.
 
@@ -23,12 +23,12 @@ There are several concepts that need to be understood first:
 
 - State: value type, can be all kinds of storable data
 - Store: reference type, holds all the states, provides state to bind view, handles and dispatches actions
-- Action: event, usually an enumeration. it must be unique and handleable
+- Action: event, usually an enumeration. It must be unique and handleable
 
 State is actually a set of protocols:
 
 - Basic Protocols
-  - StorableState: states that are storable. it is the most foundational one
+  - StorableState: states that are storable. It is the most foundational one
   - InitializableState: states can be initialized directly
   - StateContainable: states that can have sub-states
   - AttachableState: states that can be attached to other states
@@ -54,7 +54,7 @@ dependencies: [
 
 ### StorableState
 
-1. define state
+1. Define state
 
     ```swift
     import DataFlow
@@ -64,7 +64,7 @@ dependencies: [
     }
     ```
 
-2. use it in a view
+2. Use it in a view
 
     ```swift
     import DataFlow
@@ -84,7 +84,7 @@ dependencies: [
 
 SharableState can be used across all views
 
-1. define state
+1. Define state
 
     ```swift
     import DataFlow
@@ -94,7 +94,7 @@ SharableState can be used across all views
     }
     ```
 
-2. use it in view(s)
+2. Use it in view(s)
 
     ```swift
     import DataFlow
@@ -112,7 +112,7 @@ SharableState can be used across all views
 
 ### ReducerLoadableState
 
-1. define a handleable action
+1. Define a handleable action
 
     ```swift
     import DataFlow
@@ -122,7 +122,7 @@ SharableState can be used across all views
     }
     ```
 
-2. write an extension for state to confirm ActionBindable protocol and sign that action to BindAction
+2. Write an extension for state to confirm ActionBindable protocol and sign that action to BindAction
 
     ```swift
     extension NormalSharedState : ActionBindable {
@@ -130,7 +130,7 @@ SharableState can be used across all views
     }
     ```
 
-3. write an extension for state to confirm ReducerLoadableState protocol and implement the action
+3. Write an extension for state to confirm ReducerLoadableState protocol and implement the action
 
     ```swift
     extension NormalSharedState : ReducerLoadableState {
@@ -148,7 +148,7 @@ SharableState can be used across all views
     }
     ```
 
-4. used in a view
+4. Used in a view
 
     ```swift
     import DataFlow

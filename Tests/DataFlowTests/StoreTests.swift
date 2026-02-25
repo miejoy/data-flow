@@ -7,6 +7,7 @@
 
 import XCTest
 @testable import DataFlow
+@testable import ModuleMonitor
 
 @MainActor
 class StoreTests: XCTestCase {

@@ -62,7 +62,7 @@ public final class Store<State: StorableState>: ObservableObject {
     // 这两个属性为了解决一个 state 在处理一个 action 的途中触发需要处理另一个 action
     // 当前正在处理的 action
     var reducingAction: Action? = nil
-    // 如果存在处理中的 action，这里会保存带处理的 action
+    // 如果存在处理中的 action，这里会保存待处理的 action
     var pendingActions: [(Action, ReduceActionFrom)] = []
     
     /// 存储处理器 [ObjectIdentifier(Action) : ( [dependerId], Reducer) ]

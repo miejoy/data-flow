@@ -1,0 +1,15 @@
+{
+  "originHash" : "d3479c002fc4083378fd8a110c1759d4eed18187a96204cc360505a4546a0160",
+  "pins" : [
+    {
+      "identity" : "module-monitor",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/miejoy/module-monitor.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "85b45bfa647010b32bccc336dc228757108b8c92"
+      }
+    }
+  ],
+  "version" : 3
+}
