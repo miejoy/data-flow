@@ -368,6 +368,67 @@ class StoreTests: XCTestCase {
         cancellable.cancel()
     }
     
+    /// 问题1：B 释放后 A 的 mapCancellable 没有被清理，持续膨胀
+    func testMapCancellableCleanupWhenObservedStoreDestroyed() {
+        let firstStore = Store<ObserveState>()
+        var secondStore: Store<ObserveState>? = Store<ObserveState>()
+        let secondStoreObjectId = ObjectIdentifier(secondStore!)
+
+        firstStore.observe(store: secondStore!) { _, _ in }
+        firstStore.observe(store: secondStore!, of: \.name) { _, _ in }
+
+        // B 释放前，firstStore.mapCancellable 有对应条目
+        XCTAssertNotNil(firstStore.mapCancellable[secondStoreObjectId])
+
+        secondStore = nil
+
+        // 期望：B 释放后 mapCancellable 自动清理
+        // 实际：条目仍然残留，这是 bug
+        XCTAssertNil(firstStore.mapCancellable[secondStoreObjectId])
+    }
+
+    /// 问题2：B 释放后新建 B（ObjectIdentifier 可能复用），A 再次 observe 新 B 时触发 fatalError
+    func testObserveNewStoreAfterOldStoreDestroyed() {
+        StoreMonitor.shared.arrObservers = []
+        @MainActor
+        final class Observer: StoreMonitorObserver {
+            var repeatObserveCall = false
+            func receiveStoreEvent(_ event: StoreEvent) {
+                if case .fatalError(let message) = event,
+                   message.starts(with: "Repeat observe from ")
+                {
+                    repeatObserveCall = true
+                }
+            }
+        }
+        let observer = Observer()
+        let cancellable = StoreMonitor.shared.addObserver(observer)
+        defer { cancellable.cancel() }
+
+        let firstStore = Store<ObserveState>()
+        var secondStore: Store<ObserveState>? = Store<ObserveState>()
+        let secondStoreId = ObjectIdentifier(secondStore!)
+
+        firstStore.observe(store: secondStore!) { _, _ in }
+        XCTAssert(!observer.repeatObserveCall)
+
+        // 释放 B
+        secondStore = nil
+
+        // 新建 B，Swift 可能复用同一内存地址，ObjectIdentifier 和旧 B 相同
+        var thirdStore: Store<ObserveState>? = Store<ObserveState>()
+        if ObjectIdentifier(thirdStore!) == secondStoreId {
+            // ObjectIdentifier 复用：A observe 新 B 时应该正常，不应 fatalError
+            firstStore.observe(store: thirdStore!) { _, _ in }
+            XCTAssert(!observer.repeatObserveCall, "ObjectIdentifier 复用时 observe 不应 fatalError")
+        } else {
+            // ObjectIdentifier 未复用：直接验证正常 observe
+            firstStore.observe(store: thirdStore!) { _, _ in }
+            XCTAssert(!observer.repeatObserveCall)
+        }
+        thirdStore = nil
+    }
+
     func testStoreUnobserve() {
         let firstStore: Store<ObserveState> = Store<ObserveState>()
         let secondStore = Store<ObserveState>()
@@ -664,7 +725,7 @@ class StoreTests: XCTestCase {
     func testStoreDestroyCallback() {
         var normalStore : Store<NormalState>? = .init()
         var destroyCallbackCall = false
-        normalStore?.setDestroyCallback {_ in
+        normalStore?.addDestroyCallback {_ in
             destroyCallbackCall = true
         }
         

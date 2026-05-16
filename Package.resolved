@@ -1,5 +1,5 @@
 {
-  "originHash" : "d3479c002fc4083378fd8a110c1759d4eed18187a96204cc360505a4546a0160",
+  "originHash" : "a628d2a6105ff3a921de911adc975c7328a4ab235b1955f35d0368283783353f",
   "pins" : [
     {
       "identity" : "module-monitor",
@@ -7,7 +7,7 @@
       "location" : "https://github.com/miejoy/module-monitor.git",
       "state" : {
         "branch" : "main",
-        "revision" : "85b45bfa647010b32bccc336dc228757108b8c92"
+        "revision" : "1160cf41ccf018ce154819622babe0dd60af12ee"
       }
     }
   ],

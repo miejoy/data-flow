@@ -71,7 +71,7 @@ public final class Store<State: StorableState>: ObservableObject {
     var arrObservers : [StateObserver<State>] = []
     /// 保持自身监听其他 store 的 AnyCancellable
     var mapCancellable : [ObjectIdentifier: [AnyKeyPath: AnyCancellable]] = [:]
-    var destroyCallback : ((State) -> Void)? = nil
+    var destroyCallbacks : [(State) -> Void] = []
     var generateObserverId: Int = 0
     
     /// 通用存储空间，非隔离环境，受 DispatchQueue 的 StoreLock 锁保护
@@ -228,6 +228,9 @@ public final class Store<State: StorableState>: ObservableObject {
     
     /// 观察另一个存储器状态的变化，变化时会调用回调
     ///
+    /// - Warning: 若 `callback` 中捕获了外部对象（如 `self`），需使用 `[weak self]` 避免循环引用。
+    ///   持有链为：`store → observers → callback → self`
+    ///
     /// - Parameter store: 被观察的存储器
     /// - Parameter callback: 被观察的存储器状态变化时的回调
     public func observe<S:StorableState>(store: Store<S>, callback: @escaping (_ new: S, _ old: S) -> Void) {
@@ -268,6 +271,8 @@ public final class Store<State: StorableState>: ObservableObject {
     
     /// 观察另一个存储器的状态中的某个值，对于值变化时会调用回调
     ///
+    /// - Warning: 若 `callback` 中捕获了外部对象（如 `self`），需使用 `[weak self]` 避免循环引用。
+    ///
     /// - Parameter store: 被观察的存储器
     /// - Parameter keyPath: 被观察对应值的 keyPath
     /// - Parameter callback: 被观察对应值的变化时调用该回调
@@ -278,6 +283,8 @@ public final class Store<State: StorableState>: ObservableObject {
     }
     
     /// 观察另一个存储器的状态中的某个值，对于值变化时会调用回调
+    ///
+    /// - Warning: 若 `callback` 中捕获了外部对象（如 `self`），需使用 `[weak self]` 避免循环引用。
     ///
     /// - Parameter store: 被观察的存储器
     /// - Parameter keyPath: 被观察对应值的 keyPath
@@ -349,6 +356,14 @@ public final class Store<State: StorableState>: ObservableObject {
         }
         mapKeypathToCancellable[keyPath] = cancellable
         mapCancellable[key] = mapKeypathToCancellable
+        
+        // 注册 B 的 deinit 回调：B 释放时自动清理 A 的 mapCancellable 和 s_mapStateObserve
+        let fromId = ObjectIdentifier(self)
+        store.addDestroyCallback { [weak self] _ in
+            guard let self = self else { return }
+            self.mapCancellable.removeValue(forKey: key)
+            Self.removeObserve(fromId: fromId, toId: key)
+        }
     }
     
     /// 记录 from store 观察 to store
@@ -505,17 +520,19 @@ public final class Store<State: StorableState>: ObservableObject {
     
     
     // MARK: - Destroy
-    /// 设置存储器销毁时的回调
+    /// 设置存储器销毁时的回调，可多次调用，所有回调都会执行
     /// - Parameter destroyCallback: 销毁时要调用的回调
-    public func setDestroyCallback(_ destroyCallback: @escaping (State) -> Void) {
-        self.destroyCallback = destroyCallback
+    public func addDestroyCallback(_ destroyCallback: @escaping (State) -> Void) {
+        self.destroyCallbacks.append(destroyCallback)
     }
     
     deinit {
         // 由于 Store 是 @MainActor 类，Swift 运行时保证其 deinit 在主线程调用，因此 assumeIsolated 是安全的
         MainActor.assumeIsolated {
             StoreMonitor.shared.record(event: .destroyStore(self.eraseToAny()))
-            self.destroyCallback?(self._state)
+            for callback in self.destroyCallbacks {
+                callback(self._state)
+            }
         }
     }
 }
@@ -549,7 +566,7 @@ extension Store where State : StateContainable {
             self?.state.updateSubState(state: new)
         }
         // subStore 销毁时，需要清空上级 store 保存的状态
-        subStore.setDestroyCallback { [weak self] state in
+        subStore.addDestroyCallback { [weak self] state in
             self?.state.subStates.removeValue(forKey: state.stateId)
         }
     }
