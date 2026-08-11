@@ -9,13 +9,13 @@ DataFlow is in the **State** layer of a custom RSV(Resource & State & View) patt
 [![Swift](https://github.com/miejoy/data-flow/actions/workflows/test.yml/badge.svg)](https://github.com/miejoy/data-flow/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/miejoy/data-flow/branch/main/graph/badge.svg)](https://codecov.io/gh/miejoy/data-flow)
 [![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
-[![Swift](https://img.shields.io/badge/swift-5.2-brightgreen.svg)](https://swift.org)
+[![Swift](https://img.shields.io/badge/swift-6.2-brightgreen.svg)](https://swift.org)
 
 ## Requirements
 
-- iOS 13.0+ / macOS 10.15+
-- Xcode 12.0+
-- Swift 5.2+
+- iOS 16.0+ / macOS 13.0+
+- Xcode 26.0+
+- Swift 6.2+
 
 ## Introduction
 
@@ -30,7 +30,7 @@ State is actually a set of protocols:
 - Basic Protocols
   - StorableState: states that are storable. It is the most foundational one
   - InitializableState: states can be initialized directly
-  - StateContainable: states that can have sub-states
+  - StateContainable: a marker protocol for states that can have sub-stores
   - AttachableState: states that can be attached to other states
   - ReducerLoadableState: states that can load reducer automatically
 

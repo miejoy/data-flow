@@ -5,13 +5,15 @@
 //  Created by 黄磊 on 2022/10/2.
 //
 
-import XCTest
+import Testing
 @testable import DataFlow
 @testable import ModuleMonitor
 
+@Suite(.serialized)
 @MainActor
-class ReduceDependerTests: XCTestCase {
+struct ReduceDependerTests {
     
+    @Test
     func testDependerDuplicateRegister() {
         StoreCenter.shared.dependerMap = [:]
         @MainActor
@@ -29,13 +31,14 @@ class ReduceDependerTests: XCTestCase {
         
         let depender = NormalDepender()
         StoreCenter.shared.registerReduceDepender(depender)
-        XCTAssertEqual(observer.dependerDuplicateRegisterFatalErrorCall, false)
+        #expect(observer.dependerDuplicateRegisterFatalErrorCall == false)
         StoreCenter.shared.registerReduceDepender(depender)
-        XCTAssertEqual(observer.dependerDuplicateRegisterFatalErrorCall, true)
+        #expect(observer.dependerDuplicateRegisterFatalErrorCall)
         
         cancellable.cancel()
     }
     
+    @Test
     func testReduceWithDepender() {
         StoreCenter.shared.dependerMap = [:]
         let dependStore = Store<DependState>.box(.init())
@@ -43,14 +46,15 @@ class ReduceDependerTests: XCTestCase {
         StoreCenter.shared.registerReduceDepender(depender)
         
         depender.getCall = false
-        XCTAssertEqual(dependStore.getCall, false)
+        #expect(dependStore.getCall == false)
         
         dependStore.send(action: .test)
         
-        XCTAssertEqual(depender.getCall, true)
-        XCTAssertEqual(dependStore.getCall, true)
+        #expect(depender.getCall)
+        #expect(dependStore.getCall)
     }
     
+    @Test
     func testReduceWithDependerNotFulfill() {
         StoreCenter.shared.dependerMap = [:]
         let dependStore = Store<DependState>.box(.init())
@@ -58,14 +62,15 @@ class ReduceDependerTests: XCTestCase {
         StoreCenter.shared.registerReduceDepender(depender)
         
         depender.getCall = true
-        XCTAssertEqual(dependStore.getCall, false)
+        #expect(dependStore.getCall == false)
         
         dependStore.send(action: .test)
         
-        XCTAssertEqual(depender.getCall, false)
-        XCTAssertEqual(dependStore.getCall, false)
+        #expect(depender.getCall == false)
+        #expect(dependStore.getCall == false)
     }
     
+    @Test
     func testReduceDependerNotRegister() {
         StoreCenter.shared.dependerMap = [:]
         StoreMonitor.shared.arrObservers = []
@@ -84,16 +89,17 @@ class ReduceDependerTests: XCTestCase {
         
         let dependStore = Store<DependState>.box(.init())
 
-        XCTAssertEqual(dependStore.getCall, false)
+        #expect(dependStore.getCall == false)
         
         dependStore.send(action: .test)
         
-        XCTAssertEqual(dependStore.getCall, false)
-        XCTAssertEqual(observer.dependerNotFoundFatalErrorCall, true)
+        #expect(dependStore.getCall == false)
+        #expect(observer.dependerNotFoundFatalErrorCall)
         
         cancellable.cancel()
     }
     
+    @Test
     func testReduceWithMultiDepender() {
         StoreCenter.shared.dependerMap = [:]
         let dependStore = Store<MultiDependState>.box(.init())
@@ -104,15 +110,16 @@ class ReduceDependerTests: XCTestCase {
         
         firstDepender.getCall = false
         secondDepender.getCall = false
-        XCTAssertEqual(dependStore.getCall, false)
+        #expect(dependStore.getCall == false)
         
         dependStore.send(action: .test)
         
-        XCTAssertEqual(firstDepender.getCall, true)
-        XCTAssertEqual(secondDepender.getCall, true)
-        XCTAssertEqual(dependStore.getCall, true)
+        #expect(firstDepender.getCall)
+        #expect(secondDepender.getCall)
+        #expect(dependStore.getCall)
     }
     
+    @Test
     func testReduceWithMultiDependerFailed() {
         StoreCenter.shared.dependerMap = [:]
         let dependStore = Store<MultiDependState>.box(.init())
@@ -123,13 +130,13 @@ class ReduceDependerTests: XCTestCase {
         
         firstDepender.getCall = false
         secondDepender.getCall = true
-        XCTAssertEqual(dependStore.getCall, false)
+        #expect(dependStore.getCall == false)
         
         dependStore.send(action: .test)
         
-        XCTAssertEqual(firstDepender.getCall, true)
-        XCTAssertEqual(secondDepender.getCall, false)
-        XCTAssertEqual(dependStore.getCall, false)
+        #expect(firstDepender.getCall)
+        #expect(secondDepender.getCall == false)
+        #expect(dependStore.getCall == false)
     }
 }
 

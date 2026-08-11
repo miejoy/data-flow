@@ -1,303 +1,426 @@
 //
 //  StoreTests.swift
-//  
+//
 //
 //  Created by 黄磊 on 2020-06-25.
 //
 
-import XCTest
+import Testing
+import Combine
+import Foundation
 @testable import DataFlow
 @testable import ModuleMonitor
 
+@Suite(.serialized)
 @MainActor
-class StoreTests: XCTestCase {
-    
+struct StoreTests {
+
+    @Test
     func testStoreObservable() {
         let normalStore = Store<NormalState>.box(NormalState())
         var willChangeCall = false
         let cancellable = normalStore.objectWillChange.sink {
             willChangeCall = true
         }
-        
-        XCTAssertFalse(willChangeCall)
+
+        #expect(willChangeCall == false)
         normalStore.name = ""
         // 相同值不会调用 willChange
-        XCTAssertFalse(willChangeCall)
-        XCTAssertEqual(normalStore.name, "")
+        #expect(willChangeCall == false)
+        #expect(normalStore.name == "")
         willChangeCall = false
         normalStore.state.name = "text"
-        XCTAssertTrue(willChangeCall)
-        XCTAssertEqual(normalStore.state.name, "text")
+        #expect(willChangeCall)
+        #expect(normalStore.state.name == "text")
         cancellable.cancel()
     }
-    
+
+    @Test
     func testInitializableState() {
         let normalStore = Store<NormalState>()
-        XCTAssertEqual(normalStore.name, "")
+        #expect(normalStore.name == "")
     }
-    
-    func testStateContainableAndAttachable() {
+
+    @Test
+    func testRegisterAndRetrieveSubStore() {
         let containStore = Store<ContainState>.box(ContainState())
-        var containGetCall = false
-        
-        let saveSubStateBefore = containStore.state.subStates[ContainSubState().stateId]
-        XCTAssertNil(saveSubStateBefore)
-        
+
+        // 注册前获取不到子 Store
+        let subStoreBefore = containStore.getSubStore(of: ContainSubState.self)
+        #expect(subStoreBefore == nil)
+
         let subStore = Store<ContainSubState>.box(ContainSubState())
-        containStore.add(subStore: subStore)
-        
-        let saveSubStateAfter = containStore.state.subStates[subStore.state.stateId]
-        XCTAssertNotNil(saveSubStateAfter)
-        
-        let subscribe = containStore.objectWillChange.sink { (_) in
+        containStore.addSubStore(subStore)
+
+        // 注册后可以获取到子 Store
+        let retrieved = containStore.getSubStore(of: ContainSubState.self)
+        #expect(retrieved != nil)
+        #expect(retrieved?.state.subValue == 0)
+
+        // 子 Store 状态更新不会触发父 Store 级联通知
+        var containGetCall = false
+        let subscribe = containStore.objectWillChange.sink { _ in
             containGetCall = true
         }
-        
+
         var state = ContainSubState()
         state.subValue = 1
         subStore.state = state
-        
-        XCTAssert(containGetCall)
-        
+
+        // 不再级联通知
+        #expect(containGetCall == false)
+
         subscribe.cancel()
-        
-        // 确保新值在上级被设置了
-        let saveSubStateChange = containStore.state.subStates[subStore.state.stateId] as? ContainSubState
-        XCTAssertEqual(saveSubStateChange?.subValue, 1)
+
+        // 子 Store 自身状态是正确的
+        #expect(subStore.state.subValue == 1)
     }
-    
+
+    @Test
+    func testDumpState() {
+        let containStore = Store<ContainState>.box(ContainState())
+        let subStore = Store<ContainSubState>.box(ContainSubState())
+        subStore.subValue = 42
+        containStore.addSubStore(subStore)
+
+        let dump = containStore.dumpState()
+
+        #expect(dump.contains("\"subStates\""))
+        #expect(dump.contains("\"subValue\""))
+        #expect(dump.contains("42"))
+    }
+
+    @Test
+    func testDumpStateFormatValue() {
+        // 覆盖 formatValue 各分支：String / Bool / Int / Optional(nil) / Optional(value) / 嵌套 struct
+        let store = Store<DumpFormatState>.box(DumpFormatState())
+
+        let dump = store.dumpState()
+
+        // String
+        #expect(dump.contains("\"name\": \"hello\""))
+        // Bool
+        #expect(dump.contains("\"flag\": true"))
+        // Int（兜底 String(describing:)）
+        #expect(dump.contains("\"count\": 7"))
+        // Optional nil -> null
+        #expect(dump.contains("\"optionalName\": null"))
+        // Optional value
+        #expect(dump.contains("\"optionalValue\": 99"))
+        // 嵌套 struct
+        #expect(dump.contains("\"nested\": {"))
+        #expect(dump.contains("\"nestedName\": \"world\""))
+    }
+
+    @Test
+    func testCustomMirror() {
+        let store = Store<NormalState>.box(NormalState(name: "mirror"))
+        let mirror = Mirror(reflecting: store)
+
+        // customMirror 应暴露 state 属性
+        let nameChild = mirror.children.first { $0.label == "name" }
+        #expect(nameChild != nil)
+        #expect(nameChild?.value as? String == "mirror")
+
+        // 无子 Store 时不应出现 subStates
+        #expect(mirror.children.contains { $0.label == "subStates" } == false)
+    }
+
+    @Test
+    func testCustomMirrorWithSubStore() {
+        let containStore = Store<ContainState>.box(ContainState())
+        let subStore = Store<ContainSubState>.box(ContainSubState())
+        subStore.subValue = 88
+        containStore.addSubStore(subStore)
+
+        let mirror = Mirror(reflecting: containStore)
+        let subStatesChild = mirror.children.first { $0.label == "subStates" }
+        #expect(subStatesChild != nil)
+
+        // subStates 应包含子 Store
+        let subMirror = Mirror(reflecting: subStatesChild!.value)
+        #expect(subMirror.children.count == 1)
+    }
+
+    @Test
+    func testStateValue() {
+        let store = Store<NormalState>.box(NormalState(name: "hello"))
+
+        #expect(store.stateValue(\.name) == "hello")
+
+        store.name = "world"
+        #expect(store.stateValue(\.name) == "world")
+    }
+
+    @Test
+    func testStateValueCrossThread() async {
+        let store = Store<NormalState>.box(NormalState(name: "cross"))
+
+        let value = await Task.detached { () -> String in
+            store.stateValue(\.name)
+        }.value
+
+        #expect(value == "cross")
+    }
+
+    @Test
+    func testDumpStateCrossThread() async {
+        let store = Store<NormalState>.box(NormalState(name: "dump"))
+
+        let dump = await Task.detached { () -> String in
+            store.dumpState()
+        }.value
+
+        #expect(dump.contains("\"name\""))
+        #expect(dump.contains("dump"))
+    }
+
+    @Test
+    func testStateIdCrossThread() async {
+        let store = Store<NormalState>.box(NormalState(name: "id"))
+
+        let stateId = await Task.detached { () -> String in
+            store.stateId
+        }.value
+
+        #expect(stateId == store.stateId)
+    }
+
+    @Test
     func testReducerLoadableState() {
+        reducerStateIsLoad = false
         _ = Store<ReducerState>.box(.init())
-        XCTAssert(reducerStateIsLoad)
+        #expect(reducerStateIsLoad)
     }
-    
+
+    @Test
     func testStateInitReducerLoadable() {
+        initReducerStateIsLoad = false
         _ = Store<InitReducerState>()
-        XCTAssert(initReducerStateIsLoad)
+        #expect(initReducerStateIsLoad)
     }
-    
-    func testSubscript() {
+
+    @Test
+    func testSubscriptProperty() {
         let store = Store<SubscriptState>()
-        
-        XCTAssertEqual(store.normalState.name, "")
-        
+
+        #expect(store.normalState.name == "")
+
         store.normalState.name = "text"
-        XCTAssertEqual(store.normalState.name, "text")
+        #expect(store.normalState.name == "text")
     }
-    
+
+    @Test
     func testSubscriptEquatable() {
         let store = Store<SubscriptState>()
-        
-        XCTAssertEqual(store.name, "")
-        
+
+        #expect(store.name == "")
+
         store.name = "text"
-        XCTAssertEqual(store.name, "text")
+        #expect(store.name == "text")
     }
-    
+
+    @Test
     func testSendAnyAction() {
         let normalStore = Store<NormalState>.box(NormalState())
         var reducerCall = false
         normalStore.register { (state, action: AnyAction) in
             reducerCall = true
         }
-        
+
         normalStore.send(action: AnyAction.any)
         let block = normalStore.mapReducer[ObjectIdentifier(AnyAction.self)]
-        
-        XCTAssert(reducerCall)
-        XCTAssertNotNil(block)
-    }
-    
 
+        #expect(reducerCall)
+        #expect(block != nil)
+    }
+
+    @Test
     func testSendSpecificAction() {
-        
         let specificStore = Store<SpecificState>.box(SpecificState())
         var reducerCall = false
         specificStore.registerDefault { (state, action) in
             reducerCall = true
         }
-        
+
         specificStore.send(action: .specific)
         let block = specificStore.mapReducer[ObjectIdentifier(SpecificAction.self)]
-        
-        XCTAssert(reducerCall)
-        
-        XCTAssertNotNil(block)
+
+        #expect(reducerCall)
+        #expect(block != nil)
     }
-    
+
+    @Test
     func testSendSpecificActionObserve() {
-        
         let specificStore = Store<SpecificState>.box(SpecificState())
         let normalStore = Store<NormalState>()
         var reducerCall = false
         specificStore.registerDefault { (state, action) in
             reducerCall = true
         }
-        
+
         var observeStateCall = false
         specificStore.observeDefault(store: normalStore) { new, old in
             observeStateCall = true
             return .specific
         }
-        
+
         var observeValueCall = false
         specificStore.observeDefault(store: normalStore, of: \.name) { new, old in
             observeValueCall = true
             return .specific
         }
-        
-        XCTAssert(!reducerCall)
-        XCTAssert(!observeStateCall)
-        XCTAssert(!observeValueCall)
-        
+
+        #expect(reducerCall == false)
+        #expect(observeStateCall == false)
+        #expect(observeValueCall == false)
+
         normalStore.state = NormalState()
-        XCTAssert(reducerCall)
-        XCTAssert(observeStateCall)
-        XCTAssert(!observeValueCall)
+        #expect(reducerCall)
+        #expect(observeStateCall)
+        #expect(observeValueCall == false)
 
         reducerCall = false
         observeStateCall = false
         normalStore.state.name = ""
-        XCTAssert(reducerCall)
-        XCTAssert(observeStateCall)
-        XCTAssert(!observeValueCall)
-        
+        #expect(reducerCall)
+        #expect(observeStateCall)
+        #expect(observeValueCall == false)
+
         reducerCall = false
         observeStateCall = false
         normalStore.state.name = "new"
-        XCTAssert(reducerCall)
-        XCTAssert(observeStateCall)
-        XCTAssert(observeValueCall)
+        #expect(reducerCall)
+        #expect(observeStateCall)
+        #expect(observeValueCall)
     }
-    
-    func testDispatchAction() {
-        
+
+    @Test
+    func testDispatchAction() async {
         let normalStore = Store<NormalState>.box(NormalState())
         var reducerCall = false
         var isMainThread = false
-        let expectation = expectation(description: "This reducer should be called in main thread")
+
         normalStore.register { (state, action: SpecificAction) in
             reducerCall = true
             isMainThread = Thread.isMainThread
-            expectation.fulfill()
         }
-        
-        DispatchQueue.global().async {
-            normalStore.dispatch(action: SpecificAction.specific)
-        }
-        
-        wait(for: [expectation], timeout: 10)
-        
-        XCTAssert(reducerCall)
-        XCTAssert(isMainThread)
+
+        normalStore.dispatch(action: SpecificAction.specific)
+
+        // dispatch 内部 Task { @MainActor in } 异步执行，等待一拍
+        await Task.yield()
+        await Task.yield()
+
+        #expect(reducerCall)
+        #expect(isMainThread)
     }
-    
-    
-    func testDispatchSpecificAction() {
-        
+
+    @Test
+    func testDispatchSpecificAction() async {
         let specificStore = Store<SpecificState>.box(SpecificState())
         var reducerCall = false
         var isMainThread = false
-        let expectation = expectation(description: "This reducer should be called in main thread")
+
         specificStore.register { (state, action: SpecificAction) in
             reducerCall = true
             isMainThread = Thread.isMainThread
-            expectation.fulfill()
         }
-        
-        DispatchQueue.global().async {
-            specificStore.dispatch(action: .specific)
-        }
-        
-        wait(for: [expectation], timeout: 10)
-        
-        XCTAssert(reducerCall)
-        XCTAssert(isMainThread)
+
+        specificStore.dispatch(action: .specific)
+
+        await Task.yield()
+        await Task.yield()
+
+        #expect(reducerCall)
+        #expect(isMainThread)
     }
-    
-    
+
+    @Test
     func testStoreSubscript() {
-        
         s_mapSharedStore.removeAll()
         s_mapStateObserve.removeAll()
         let subStore = Store<ContainSubState>.box(ContainSubState())
-        
-        XCTAssertEqual(subStore.subValue, 0)
-        
+
+        #expect(subStore.subValue == 0)
+
         subStore.state.subValue = 1
-        XCTAssertEqual(subStore.subValue, 1)
-        
+        #expect(subStore.subValue == 1)
+
         subStore.subValue = 2
-        XCTAssertEqual(subStore.state.subValue, 2)
-        
+        #expect(subStore.state.subValue == 2)
+
         subStore.subValue = 3
-        XCTAssertEqual(subStore.state.subValue, 3)
+        #expect(subStore.state.subValue == 3)
     }
-    
+
+    @Test
     func testStoreObserve() {
         let firstStore: Store<ObserveState> = Store<ObserveState>()
         let secondStore = Store<ObserveState>()
-        
+
         var observeStateCall = false
         firstStore.observe(store: secondStore) { new, old in
             observeStateCall = true
         }
-        
+
         var observeValueCall = false
         firstStore.observe(store: secondStore, of: \.name) { new, old in
             observeValueCall = true
         }
-        
+
         secondStore.name = "text"
-        
-        XCTAssert(observeStateCall)
-        XCTAssert(observeValueCall)
-        
+
+        #expect(observeStateCall)
+        #expect(observeValueCall)
+
         observeStateCall = false
         observeValueCall = false
         secondStore.name = "text1"
-        XCTAssert(observeStateCall)
-        XCTAssert(observeValueCall)
-        
+        #expect(observeStateCall)
+        #expect(observeValueCall)
+
         observeStateCall = false
         observeValueCall = false
         secondStore.otherValue = "text"
-        XCTAssert(observeStateCall)
-        XCTAssert(!observeValueCall)
+        #expect(observeStateCall)
+        #expect(observeValueCall == false)
     }
-    
+
+    @Test
     func testStoreObserveValueWithState() {
         let firstStore: Store<ObserveState> = Store<ObserveState>()
         let secondStore = Store<ObserveState>()
-        
+
         var newName = "text"
         var observeValueCall = false
         firstStore.observe(store: secondStore, of: \.name) { new, old, newState, oldState in
             observeValueCall = true
-            XCTAssertEqual(new, newName)
-            XCTAssertEqual(newState.name, newName)
-            XCTAssertNotEqual(new, old)
-            XCTAssertNotEqual(newState.name, oldState.name)
+            #expect(new == newName)
+            #expect(newState.name == newName)
+            #expect(new != old)
+            #expect(newState.name != oldState.name)
         }
-        
+
         secondStore.name = newName
-        
-        XCTAssert(observeValueCall)
-        
+
+        #expect(observeValueCall)
+
         observeValueCall = false
         newName = "text1"
         secondStore.name = newName
-        XCTAssert(observeValueCall)
-        
+        #expect(observeValueCall)
+
         observeValueCall = false
         secondStore.otherValue = "text"
-        XCTAssert(!observeValueCall)
+        #expect(observeValueCall == false)
     }
-    
+
+    @Test
     func testStoreObserveWithAction() {
         let firstStore: Store<ObserveState> = Store<ObserveState>()
         let secondStore = Store<ObserveState>()
-        
+
         var actionCall = false
         firstStore.register { (state, action: AnyAction) in
             switch action {
@@ -305,32 +428,33 @@ class StoreTests: XCTestCase {
                 actionCall = true
             }
         }
-        
+
         var observeValueCall = false
         firstStore.observe(store: secondStore, of: \.name) { (new, old) -> AnyAction in
             observeValueCall = true
             return AnyAction.any
         }
-        
+
         secondStore.name = "text"
-        XCTAssert(observeValueCall)
-        XCTAssert(actionCall)
-        
+        #expect(observeValueCall)
+        #expect(actionCall)
+
         var observeStateCall = false
         firstStore.observe(store: secondStore) { (new, old) -> AnyAction in
             observeStateCall = true
             return AnyAction.any
         }
-        
+
         actionCall = false
         observeStateCall = false
         observeValueCall = false
         secondStore.otherValue = "text"
-        XCTAssert(observeStateCall)
-        XCTAssert(!observeValueCall)
-        XCTAssert(actionCall)
+        #expect(observeStateCall)
+        #expect(observeValueCall == false)
+        #expect(actionCall)
     }
-    
+
+    @Test
     func testStoreObserveRepeat() {
         StoreMonitor.shared.arrObservers = []
         @MainActor
@@ -344,31 +468,31 @@ class StoreTests: XCTestCase {
                 }
             }
         }
-        
+
         let observer = Observer()
         let cancellable = StoreMonitor.shared.addObserver(observer)
-        
+
         let firstStore: Store<ObserveState> = Store<ObserveState>()
         let secondStore = Store<ObserveState>()
-        
+
         firstStore.observe(store: secondStore) { _,_ in}
-        XCTAssert(!observer.repeatObserveCall)
-        
+        #expect(observer.repeatObserveCall == false)
+
         firstStore.observe(store: secondStore) { _,_ in}
-        XCTAssert(observer.repeatObserveCall)
-        
-        
+        #expect(observer.repeatObserveCall)
+
+
         observer.repeatObserveCall = false
         firstStore.observe(store: secondStore, of: \.name) { _,_ in}
-        XCTAssert(!observer.repeatObserveCall)
-        
+        #expect(observer.repeatObserveCall == false)
+
         firstStore.observe(store: secondStore, of: \.name) { _,_ in}
-        XCTAssert(observer.repeatObserveCall)
-        
+        #expect(observer.repeatObserveCall)
+
         cancellable.cancel()
     }
-    
-    /// 问题1：B 释放后 A 的 mapCancellable 没有被清理，持续膨胀
+
+    @Test
     func testMapCancellableCleanupWhenObservedStoreDestroyed() {
         let firstStore = Store<ObserveState>()
         var secondStore: Store<ObserveState>? = Store<ObserveState>()
@@ -378,16 +502,15 @@ class StoreTests: XCTestCase {
         firstStore.observe(store: secondStore!, of: \.name) { _, _ in }
 
         // B 释放前，firstStore.mapCancellable 有对应条目
-        XCTAssertNotNil(firstStore.mapCancellable[secondStoreObjectId])
+        #expect(firstStore.mapCancellable[secondStoreObjectId] != nil)
 
         secondStore = nil
 
         // 期望：B 释放后 mapCancellable 自动清理
-        // 实际：条目仍然残留，这是 bug
-        XCTAssertNil(firstStore.mapCancellable[secondStoreObjectId])
+        #expect(firstStore.mapCancellable[secondStoreObjectId] == nil)
     }
 
-    /// 问题2：B 释放后新建 B（ObjectIdentifier 可能复用），A 再次 observe 新 B 时触发 fatalError
+    @Test
     func testObserveNewStoreAfterOldStoreDestroyed() {
         StoreMonitor.shared.arrObservers = []
         @MainActor
@@ -410,7 +533,7 @@ class StoreTests: XCTestCase {
         let secondStoreId = ObjectIdentifier(secondStore!)
 
         firstStore.observe(store: secondStore!) { _, _ in }
-        XCTAssert(!observer.repeatObserveCall)
+        #expect(observer.repeatObserveCall == false)
 
         // 释放 B
         secondStore = nil
@@ -420,97 +543,101 @@ class StoreTests: XCTestCase {
         if ObjectIdentifier(thirdStore!) == secondStoreId {
             // ObjectIdentifier 复用：A observe 新 B 时应该正常，不应 fatalError
             firstStore.observe(store: thirdStore!) { _, _ in }
-            XCTAssert(!observer.repeatObserveCall, "ObjectIdentifier 复用时 observe 不应 fatalError")
+            #expect(observer.repeatObserveCall == false)
         } else {
             // ObjectIdentifier 未复用：直接验证正常 observe
             firstStore.observe(store: thirdStore!) { _, _ in }
-            XCTAssert(!observer.repeatObserveCall)
+            #expect(observer.repeatObserveCall == false)
         }
         thirdStore = nil
     }
 
+    @Test
     func testStoreUnobserve() {
         let firstStore: Store<ObserveState> = Store<ObserveState>()
         let secondStore = Store<ObserveState>()
-        
+
         var observeStateCall = false
         firstStore.observe(store: secondStore) { new, old in
             observeStateCall = true
         }
-        
+
         var observeValueCall = false
         firstStore.observe(store: secondStore, of: \.name) { new, old in
             observeValueCall = true
         }
-        
+
         secondStore.name = "text"
-        
-        XCTAssert(observeStateCall)
-        XCTAssert(observeValueCall)
-        
+
+        #expect(observeStateCall)
+        #expect(observeValueCall)
+
         observeStateCall = false
         observeValueCall = false
         firstStore.unobserve(store: secondStore)
         secondStore.name = "text1"
-        XCTAssert(!observeStateCall)
-        XCTAssert(observeValueCall)
-        
+        #expect(observeStateCall == false)
+        #expect(observeValueCall)
+
         observeStateCall = false
         observeValueCall = false
         firstStore.unobserve(store: secondStore, of: \.name)
         secondStore.name = "text"
-        XCTAssert(!observeStateCall)
-        XCTAssert(!observeValueCall)
+        #expect(observeStateCall == false)
+        #expect(observeValueCall == false)
     }
-    
+
+    @Test
     func testStoreUnobserveAll() {
         let firstStore: Store<ObserveState> = Store<ObserveState>()
         let secondStore = Store<ObserveState>()
-        
+
         var observeStateCall = false
         firstStore.observe(store: secondStore) { new, old in
             observeStateCall = true
         }
-        
+
         var observeValueCall = false
         firstStore.observe(store: secondStore, of: \.name) { new, old in
             observeValueCall = true
         }
-        
+
         secondStore.name = "text"
-        
-        XCTAssert(observeStateCall)
-        XCTAssert(observeValueCall)
-        
+
+        #expect(observeStateCall)
+        #expect(observeValueCall)
+
         observeStateCall = false
         observeValueCall = false
         firstStore.unobserveAll(store: secondStore)
         secondStore.name = "text1"
-        XCTAssert(!observeStateCall)
-        XCTAssert(!observeValueCall)
+        #expect(observeStateCall == false)
+        #expect(observeValueCall == false)
     }
-        
+
+    @Test
     func testCancelObserverWhenDestroy() {
         var firstStore: Store<NormalState>? = Store<NormalState>()
         let secondStore = Store<NormalState>()
-        XCTAssertEqual(secondStore.arrObservers.count, 0)
-        XCTAssertEqual(secondStore.mapValueObservers.count, 0)
-        XCTAssertNil(secondStore.mapValueObservers[\NormalState.name])
-        
+        #expect(secondStore.arrObservers.count == 0)
+        #expect(secondStore.mapValueObservers.count == 0)
+        #expect(secondStore.mapValueObservers[\NormalState.name] == nil)
+
         firstStore!.observe(store: secondStore) { new, old in }
-        XCTAssertEqual(secondStore.arrObservers.count, 1)
-        XCTAssertEqual(secondStore.generateObserverId, 1)
-        
+        #expect(secondStore.arrObservers.count == 1)
+        #expect(secondStore.generateObserverId == 1)
+
         firstStore!.observe(store: secondStore, of: \.name) { new, old in }
-        XCTAssertEqual(secondStore.mapValueObservers.count, 1)
-        XCTAssertEqual(secondStore.mapValueObservers[\NormalState.name]?.count, 1)
-        XCTAssertEqual(secondStore.generateObserverId, 2)
-        
+        #expect(secondStore.mapValueObservers.count == 1)
+        #expect(secondStore.mapValueObservers[\NormalState.name]?.count == 1)
+        #expect(secondStore.generateObserverId == 2)
+
         firstStore = nil
-        XCTAssertEqual(secondStore.arrObservers.count, 0)
-        XCTAssertEqual(secondStore.mapValueObservers.count, 0)
+        #expect(secondStore.arrObservers.count == 0)
+        #expect(secondStore.mapValueObservers.count == 0)
     }
-    
+
+    @Test
     func testNotifyWillCallWhileStateChange() {
         let normalStore: Store<NormalState> = Store<NormalState>()
         var reduceCall = false
@@ -518,35 +645,36 @@ class StoreTests: XCTestCase {
         let cancellable = normalStore.addObserver { new, old in
             observerCall = true
         }
-        
+
         normalStore.send(action: AnyAction.any)
-        XCTAssertEqual(reduceCall, false)
-        XCTAssertEqual(observerCall, false)
-        
+        #expect(reduceCall == false)
+        #expect(observerCall == false)
+
         normalStore.register { (state, action: AnyAction) in
             // 这里即使不对 state 做任何操作，对应 observer 也会被调用，这个 & 机制问题
             state.name = "new"
             reduceCall = true
         }
-        
+
         normalStore.send(action: AnyAction.any)
-        XCTAssertEqual(reduceCall, true)
-        XCTAssertEqual(observerCall, true)
+        #expect(reduceCall)
+        #expect(observerCall)
         reduceCall = false
         observerCall = false
         cancellable.cancel()
         normalStore.send(action: AnyAction.any)
-        XCTAssertEqual(reduceCall, true)
-        XCTAssertEqual(observerCall, false)
+        #expect(reduceCall)
+        #expect(observerCall == false)
     }
-    
+
+    @Test
     func testNotifyWillCallWhileValueChange() {
         let normalStore: Store<NormalState> = Store<NormalState>()
         var reduceCall = false
         var observerCall = false
         let oldName = normalStore.name
         let newName = "new"
-        XCTAssertNotEqual(newName, oldName)
+        #expect(newName != oldName)
         let cancellable = normalStore.addObserver(of: \.name) { new, old in
             observerCall = true
         }
@@ -554,52 +682,54 @@ class StoreTests: XCTestCase {
             state.name = newName
             reduceCall = true
         }
-        
+
         normalStore.send(action: AnyAction.any)
-        XCTAssertEqual(reduceCall, true)
-        XCTAssertEqual(observerCall, true)
-        XCTAssertEqual(normalStore.name, newName)
+        #expect(reduceCall)
+        #expect(observerCall)
+        #expect(normalStore.name == newName)
         reduceCall = false
         observerCall = false
         cancellable.cancel()
         normalStore.send(action: AnyAction.any)
-        XCTAssertEqual(reduceCall, true)
-        XCTAssertEqual(observerCall, false)
-        XCTAssertEqual(normalStore.name, newName)
+        #expect(reduceCall)
+        #expect(observerCall == false)
+        #expect(normalStore.name == newName)
     }
-    
+
+    @Test
     func testNotifyWillCallWhileValueAndStateChange() {
         let normalStore: Store<NormalState> = Store<NormalState>()
         var reduceCall = false
         var observerCall = false
         let oldName = normalStore.name
         let newName = "new"
-        XCTAssertNotEqual(newName, oldName)
+        #expect(newName != oldName)
         let cancellable = normalStore.addObserver(of: \.name) { new, old, newState, oldState in
             observerCall = true
-            XCTAssertNotEqual(new, old)
-            XCTAssertNotEqual(newState.name, oldState.name)
-            XCTAssertEqual(new, newName)
-            XCTAssertEqual(newState.name, newName)
+            #expect(new != old)
+            #expect(newState.name != oldState.name)
+            #expect(new == newName)
+            #expect(newState.name == newName)
         }
         normalStore.register { (state, action: AnyAction) in
             state.name = newName
             reduceCall = true
         }
-        
+
         normalStore.send(action: AnyAction.any)
-        XCTAssertEqual(reduceCall, true)
-        XCTAssertEqual(observerCall, true)
-        XCTAssertEqual(normalStore.name, newName)
+        #expect(reduceCall)
+        #expect(observerCall)
+        #expect(normalStore.name == newName)
         reduceCall = false
         observerCall = false
         cancellable.cancel()
         normalStore.send(action: AnyAction.any)
-        XCTAssertEqual(reduceCall, true)
-        XCTAssertEqual(observerCall, false)
-        XCTAssertEqual(normalStore.name, newName)
+        #expect(reduceCall)
+        #expect(observerCall == false)
+        #expect(normalStore.name == newName)
     }
-    
+
+    @Test
     func testNotifyWillNeverCallWhileValueNotChange() {
         let normalStore: Store<NormalState> = Store<NormalState>()
         var reduceCall = false
@@ -608,20 +738,20 @@ class StoreTests: XCTestCase {
         normalStore.register { (state, action: AnyAction) in
             reduceCall = true
         }
-        
+
         normalStore.send(action: AnyAction.any)
-        XCTAssertEqual(reduceCall, true)
-        XCTAssertEqual(observerCall, false)
+        #expect(reduceCall)
+        #expect(observerCall == false)
         reduceCall = false
         observerCall = false
         cancellable.cancel()
         normalStore.send(action: AnyAction.any)
-        XCTAssertEqual(reduceCall, true)
-        XCTAssertEqual(observerCall, false)
+        #expect(reduceCall)
+        #expect(observerCall == false)
     }
-    
+
+    @Test
     func testCyclicObserve() {
-        
         StoreMonitor.shared.arrObservers = []
         @MainActor
         final class Observer: StoreMonitorObserver {
@@ -634,23 +764,23 @@ class StoreTests: XCTestCase {
         }
         let observer = Observer()
         let cancellable = StoreMonitor.shared.addObserver(observer)
-        
+
         let fromStore = Store<NormalState>()
         let toStore = Store<SpecificState>.box(SpecificState())
-        
-        XCTAssert(!observer.cyclicObserveCall)
-        
+
+        #expect(observer.cyclicObserveCall == false)
+
         toStore.observe(store: fromStore) { new,old in }
-        XCTAssert(!observer.cyclicObserveCall)
-        
+        #expect(observer.cyclicObserveCall == false)
+
         fromStore.observe(store: toStore) { new,old in }
-        XCTAssert(observer.cyclicObserveCall)
-        
+        #expect(observer.cyclicObserveCall)
+
         cancellable.cancel()
     }
-    
+
+    @Test
     func testCyclicObserveIndirect() {
-        
         StoreMonitor.shared.arrObservers = []
         @MainActor
         final class Observer: StoreMonitorObserver {
@@ -663,90 +793,84 @@ class StoreTests: XCTestCase {
         }
         let observer = Observer()
         let cancellable = StoreMonitor.shared.addObserver(observer)
-        
+
         let topStore = Store<NormalState>()
         let middleStore = Store<ContainState>.box(ContainState())
         let bottomStore = Store<ContainSubState>.box(ContainSubState())
-        let otherStore = Store<SpecificState>.box(SpecificState())
-        
-        var isTopObserverBottom = Store<NormalState>.isToObserveFrom(toId: ObjectIdentifier(topStore), fromId: ObjectIdentifier(bottomStore))
-        var isBottomObserverTop =  Store<ContainSubState>.isToObserveFrom(toId: ObjectIdentifier(bottomStore), fromId: ObjectIdentifier(topStore))
-        XCTAssert(!isTopObserverBottom)
-        XCTAssert(!isBottomObserverTop)
-        XCTAssert(!observer.cyclicObserveCall)
-        
+
+        #expect(observer.cyclicObserveCall == false)
+
         topStore.observe(store: middleStore) { new,old in }
-        XCTAssert(!observer.cyclicObserveCall)
-        
-        middleStore.add(subStore: bottomStore)
-        middleStore.observe(store: otherStore) { new, old in }
-        XCTAssert(!observer.cyclicObserveCall)
+        #expect(observer.cyclicObserveCall == false)
+
+        // addSubStore 不再创建 observer 链
+        middleStore.addSubStore(bottomStore)
+
+        var isTopObserverBottom = Store<NormalState>.isToObserveFrom(toId: ObjectIdentifier(topStore), fromId: ObjectIdentifier(bottomStore))
+        #expect(isTopObserverBottom == false)
+
+        // 显式 observe 建立传递链：top → middle → bottom
+        middleStore.observe(store: bottomStore) { new, old in }
         isTopObserverBottom = Store<NormalState>.isToObserveFrom(toId: ObjectIdentifier(topStore), fromId: ObjectIdentifier(bottomStore))
-        isBottomObserverTop =  Store<ContainSubState>.isToObserveFrom(toId: ObjectIdentifier(bottomStore), fromId: ObjectIdentifier(topStore))
-        XCTAssert(isTopObserverBottom)
-        XCTAssert(!isBottomObserverTop)
-        
+        #expect(isTopObserverBottom)
+
+        let isBottomObserverTop = Store<ContainSubState>.isToObserveFrom(toId: ObjectIdentifier(bottomStore), fromId: ObjectIdentifier(topStore))
+        #expect(isBottomObserverTop == false)
+
+        // bottom → top 形成循环
         bottomStore.observe(store: topStore) { new, old in }
-        XCTAssert(observer.cyclicObserveCall)
-        isTopObserverBottom = Store<NormalState>.isToObserveFrom(toId: ObjectIdentifier(topStore), fromId: ObjectIdentifier(bottomStore))
-        isBottomObserverTop =  Store<ContainSubState>.isToObserveFrom(toId: ObjectIdentifier(bottomStore), fromId: ObjectIdentifier(topStore))
-        XCTAssert(isTopObserverBottom)
-        XCTAssert(isBottomObserverTop)
-        
-        // 测试断开循环观察
-        middleStore.mapCancellable.removeAll()
-        isTopObserverBottom = Store<NormalState>.isToObserveFrom(toId: ObjectIdentifier(topStore), fromId: ObjectIdentifier(bottomStore))
-        isBottomObserverTop =  Store<ContainSubState>.isToObserveFrom(toId: ObjectIdentifier(bottomStore), fromId: ObjectIdentifier(topStore))
-        XCTAssert(!isTopObserverBottom)
-        XCTAssert(isBottomObserverTop)
-        
+        #expect(observer.cyclicObserveCall)
+
         cancellable.cancel()
     }
-    
-    func testMuiltValueObserve() {
+
+    @Test
+    func testMultiValueObserve() {
         StoreMonitor.shared.arrObservers = []
-        
+
         let topStore = Store<NormalState>()
         let middleStore = Store<ContainState>.box(ContainState())
         var bottomStore: Store<ContainSubState>? = Store<ContainSubState>.box(ContainSubState())
-        
-        XCTAssertEqual(topStore.mapValueObservers[\NormalState.name]?.count ?? 0, 0)
-        
+
+        #expect(topStore.mapValueObservers[\NormalState.name]?.count ?? 0 == 0)
+
         middleStore.observe(store: topStore, of: \.name) { new, old in }
-        XCTAssertEqual(topStore.mapValueObservers[\NormalState.name]?.count ?? 0, 1)
-        
+        #expect(topStore.mapValueObservers[\NormalState.name]?.count ?? 0 == 1)
+
         bottomStore!.observe(store: topStore, of: \.name) { new, old in }
-        XCTAssertEqual(topStore.mapValueObservers[\NormalState.name]?.count ?? 0, 2)
-        
+        #expect(topStore.mapValueObservers[\NormalState.name]?.count ?? 0 == 2)
+
         bottomStore = nil
-        XCTAssertEqual(topStore.mapValueObservers[\NormalState.name]?.count ?? 0, 1)
+        #expect(topStore.mapValueObservers[\NormalState.name]?.count ?? 0 == 1)
     }
-    
+
+    @Test
     func testStoreDestroyCallback() {
         var normalStore : Store<NormalState>? = .init()
         var destroyCallbackCall = false
         normalStore?.addDestroyCallback {_ in
             destroyCallbackCall = true
         }
-        
-        XCTAssert(!destroyCallbackCall)
+
+        #expect(destroyCallbackCall == false)
         normalStore = nil
-        XCTAssert(destroyCallbackCall)
+        #expect(destroyCallbackCall)
     }
-    
-    func testUpStoreRemoveSubStateWhenSubStoreDestroy() {
+
+    @Test
+    func testRemoveSubStoreWhenSubStoreDestroy() {
         let upStore : Store<ContainState> = .init(state: ContainState())
         var subStore : Store<ContainSubState>? = .init(state: ContainSubState())
-        
-        upStore.add(subStore: subStore!)
-        
-        let subStateId = subStore!.state.stateId
-        XCTAssertNotNil(upStore.state.subStates[subStateId])
-        
+
+        upStore.addSubStore(subStore!)
+
+        #expect(upStore.getSubStore(of: ContainSubState.self) != nil)
+
         subStore = nil
-        XCTAssertNil(upStore.state.subStates[subStateId])
+        #expect(upStore.getSubStore(of: ContainSubState.self) == nil)
     }
-    
+
+    @Test
     func testStrictMode() {
         StoreMonitor.shared.arrObservers = []
         StoreMonitor.shared.useStrictMode = true
@@ -763,185 +887,196 @@ class StoreTests: XCTestCase {
         }
         let observer = Observer()
         let cancellable = StoreMonitor.shared.addObserver(observer)
-        
+
         let normalStore = Store<NormalState>()
-        
-        XCTAssert(!observer.strictModeFatalErrorCall)
+
+        #expect(observer.strictModeFatalErrorCall == false)
         normalStore.state.name = ""
-        XCTAssert(observer.strictModeFatalErrorCall)
-        
+        #expect(observer.strictModeFatalErrorCall)
+
         observer.strictModeFatalErrorCall = false
         normalStore.name = ""
-        XCTAssert(observer.strictModeFatalErrorCall)
-        
+        #expect(observer.strictModeFatalErrorCall)
+
         let subscriptStore = Store<SubscriptState>()
         observer.strictModeFatalErrorCall = false
         subscriptStore.normalState.name = ""
-        XCTAssert(observer.strictModeFatalErrorCall)
-       
+        #expect(observer.strictModeFatalErrorCall)
+
         cancellable.cancel()
     }
-    
+
+    @Test
     func testOptionalStateValue() {
         let optionalStore = Store<OptionalState>()
         var optionalValueChange = false
         let cancellable = optionalStore.addObserver(of: \.name) { new, old in
             optionalValueChange = true
         }
-        
-        XCTAssert(!optionalValueChange)
+
+        #expect(optionalValueChange == false)
         optionalStore.name = ""
-        XCTAssert(optionalValueChange)
-        
+        #expect(optionalValueChange)
+
         optionalValueChange = false
         optionalStore.name = ""
-        XCTAssert(!optionalValueChange)
-        
+        #expect(optionalValueChange == false)
+
         optionalStore.name = nil
-        XCTAssert(optionalValueChange)
-        
+        #expect(optionalValueChange)
+
         cancellable.cancel()
     }
-    
+
+    @Test
     func testSubscriptReadOnlyState() {
         let theName = "name"
         let readOnlyStore = Store<ReadOnlyState>.box(ReadOnlyState(name: theName))
-        
-        XCTAssertEqual(readOnlyStore.name, theName)
+
+        #expect(readOnlyStore.name == theName)
     }
-    
+
+    @Test
     func testNestedStateReduce() {
         let fromStore = Store<NestedReduceFromState>.box(.init())
         let toStore = Store<NestedReduceToState>.box(.init())
-        
+
         fromStore.observeDefault(store: toStore, of: \.stateB, callback: { new,old in .changeStateB })
         toStore.observeDefault(store: fromStore, of: \.stateA, callback: { new,old in .changeStateB })
-        
-        XCTAssertEqual(fromStore.state.stateA, false)
-        XCTAssertEqual(fromStore.state.stateB, false)
-        
+
+        #expect(fromStore.state.stateA == false)
+        #expect(fromStore.state.stateB == false)
+
         fromStore.send(action: .changeStateA)
-        
-        XCTAssertEqual(fromStore.state.stateA, true)
-        XCTAssertEqual(fromStore.state.stateB, true)
+
+        #expect(fromStore.state.stateA)
+        #expect(fromStore.state.stateB)
     }
-    
+
+    @Test
     func testReduceInOtherReduce() {
         let recurseStore = Store<RecurseReduceState>.box(.init())
-        
-        XCTAssertEqual(recurseStore.state.stateA, false)
-        XCTAssertEqual(recurseStore.state.stateB, false)
-        
+
+        #expect(recurseStore.state.stateA == false)
+        #expect(recurseStore.state.stateB == false)
+
         recurseStore.send(action: .changeStateA)
-        
-        XCTAssertEqual(recurseStore.state.stateA, true)
-        XCTAssertEqual(recurseStore.state.stateB, true)
+
+        #expect(recurseStore.state.stateA)
+        #expect(recurseStore.state.stateB)
     }
-    
+
+    @Test
     func testAnyStore() {
         let name = "name"
         let normalStore = Store<NormalState>.box(.init(name: name))
-        
+
         let anyStore = normalStore.eraseToAny()
-        
-        XCTAssertEqual(anyStore.stateId, normalStore.stateId)
-        XCTAssertNotNil(anyStore.store as? Store<NormalState>)
-        XCTAssertEqual((anyStore.store as? Store<NormalState>)?.name, normalStore.name)
-        XCTAssertEqual((anyStore.store as? Store<NormalState>)?.name, name)
-        XCTAssertEqual((anyStore.state as? NormalState)?.name, name)
-        XCTAssertTrue(anyStore.stateType == NormalState.self)
+
+        #expect(anyStore.stateId == normalStore.stateId)
+        #expect(anyStore.store as? Store<NormalState> != nil)
+        #expect((anyStore.store as? Store<NormalState>)?.name == normalStore.name)
+        #expect((anyStore.store as? Store<NormalState>)?.name == name)
+        #expect((anyStore.state as? NormalState)?.name == name)
+        #expect(String(describing: anyStore.stateType) == String(describing: NormalState.self))
     }
-    
+
+    @Test
     func testStoreStorage() {
-        let normalStore = Store<NormalState>.box(.init(name: name))
-        
-        XCTAssertNil(normalStore[.viewId])
-        
+        let normalStore = Store<NormalState>.box(.init(name: "test"))
+
+        #expect(normalStore[.viewId] == nil)
+
         // 测试普通设置
         let newViewId = "NewViewId"
         normalStore[.viewId] = newViewId
-        XCTAssertEqual(normalStore[.viewId], newViewId)
-        
+        #expect(normalStore[.viewId] == newViewId)
+
         // 测试读取默认值时设置
         let defaultViewId = "DefaultViewId"
-        XCTAssertEqual(normalStore[.viewId, default: defaultViewId], newViewId)
-        
+        #expect(normalStore[.viewId, default: defaultViewId] == newViewId)
+
         // 重置一下
         normalStore[.viewId] = nil
-        XCTAssertNil(normalStore[.viewId])
-        
-        XCTAssertEqual(normalStore[.viewId, default: defaultViewId], defaultViewId)
-        XCTAssertEqual(normalStore[.viewId], defaultViewId)
+        #expect(normalStore[.viewId] == nil)
+
+        #expect(normalStore[.viewId, default: defaultViewId] == defaultViewId)
+        #expect(normalStore[.viewId] == defaultViewId)
     }
-    
+
+    @Test
     func testDefaultStoreStorage() {
-        let normalStore = Store<NormalState>.box(.init(name: name))
-        
+        let normalStore = Store<NormalState>.box(.init(name: "test"))
+
         let defaultViewId = "DefaultViewId"
         // 首次读取
-        XCTAssertEqual(normalStore[.defaultViewId], defaultViewId)
-        
+        #expect(normalStore[.defaultViewId] == defaultViewId)
+
         // 二次读取
-        XCTAssertEqual(normalStore[.defaultViewId], defaultViewId)
-        
+        #expect(normalStore[.defaultViewId] == defaultViewId)
+
         // 覆盖后读取
         let newViewId = "NewViewId"
         normalStore[.defaultViewId] = newViewId
-        XCTAssertEqual(normalStore[.defaultViewId], newViewId)
+        #expect(normalStore[.defaultViewId] == newViewId)
     }
-    
+
+    @Test
     func testStateOnStoreStorage() {
-        let normalStore = Store<NormalState>.box(.init(name: name))
-        
-        XCTAssertNil(normalStore[.normalViewId])
-        
+        let normalStore = Store<NormalState>.box(.init(name: "test"))
+
+        #expect(normalStore[.normalViewId] == nil)
+
         // 测试普通设置
         let newViewId = "NewViewId"
         normalStore[.normalViewId] = newViewId
-        XCTAssertEqual(normalStore[.normalViewId], newViewId)
-        
+        #expect(normalStore[.normalViewId] == newViewId)
+
         // 测试读取默认值时设置
         let defaultViewId = "DefaultViewId"
-        XCTAssertEqual(normalStore[.normalViewId, default: defaultViewId], newViewId)
-        
+        #expect(normalStore[.normalViewId, default: defaultViewId] == newViewId)
+
         // 重置一下
         normalStore[.normalViewId] = nil
-        XCTAssertNil(normalStore[.normalViewId])
-        
-        XCTAssertEqual(normalStore[.normalViewId, default: defaultViewId], defaultViewId)
-        XCTAssertEqual(normalStore[.normalViewId], defaultViewId)
+        #expect(normalStore[.normalViewId] == nil)
+
+        #expect(normalStore[.normalViewId, default: defaultViewId] == defaultViewId)
+        #expect(normalStore[.normalViewId] == defaultViewId)
     }
-    
+
+    @Test
     func testDefaultStateOnStoreStorage() {
-        let normalStore = Store<NormalState>.box(.init(name: name))
-        
+        let normalStore = Store<NormalState>.box(.init(name: "test"))
+
         let defaultViewId = "DefaultNormalViewId"
         // 首次读取
-        XCTAssertEqual(normalStore[.defaultNormalViewId], defaultViewId)
-        
+        #expect(normalStore[.defaultNormalViewId] == defaultViewId)
+
         // 二次读取
-        XCTAssertEqual(normalStore[.defaultNormalViewId], defaultViewId)
-        
+        #expect(normalStore[.defaultNormalViewId] == defaultViewId)
+
         // 覆盖后读取
         let newViewId = "NewViewId"
         normalStore[.defaultNormalViewId] = newViewId
-        XCTAssertEqual(normalStore[.defaultNormalViewId], newViewId)
+        #expect(normalStore[.defaultNormalViewId] == newViewId)
     }
-    
+
+    @Test
     func testGetStoreConfig() {
         let configValue = "test123"
-        let normalStore = Store<NormalState>.box(.init(name: name), configs: [.make(.testConfig, configValue)])
-        XCTAssertEqual(normalStore[.testConfig], configValue)
-        XCTAssertEqual(StoreConfigKey<String>.testConfig.description, "TextConfig<String>")
-
+        let normalStore = Store<NormalState>.box(.init(name: "test"), configs: [.make(.testConfig, configValue)])
+        #expect(normalStore[.testConfig] == configValue)
+        #expect(StoreConfigKey<String>.testConfig.description == "TextConfig<String>")
     }
-    
+
+    @Test
     func testGetStoreConfigWithDefaultValue() {
         let defaultConfigValue = "default123"
-        let normalStore = Store<NormalState>.box(.init(name: name))
-        XCTAssertEqual(normalStore[.testConfig, default: defaultConfigValue], defaultConfigValue)
+        let normalStore = Store<NormalState>.box(.init(name: "test"))
+        #expect(normalStore[.testConfig, default: defaultConfigValue] == defaultConfigValue)
     }
 }
+
 
 enum AnyAction : Action {
     case any
@@ -975,16 +1110,14 @@ struct InitReducerState : UseInitializableState, ReducerLoadableState {
 }
 
 struct ContainState : StorableState, StateContainable {
-    
-    var subStates: [String : StorableState] = [:]
-    
     typealias UpState = AppState
+    public init() {}
 }
 
 struct ContainSubState : StorableState, AttachableState {
-    
+
     typealias UpState = ContainState
-    
+
     var subValue : Int = 0
     var testValue : Int = 0
 }
@@ -1011,12 +1144,26 @@ struct ReadOnlyState: StorableState {
     let name: String
 }
 
+/// 用于测试 dumpState 中 formatValue 的各分支
+struct DumpNestedState: StorableState {
+    var nestedName: String = "world"
+}
+
+struct DumpFormatState: StorableState {
+    var name: String = "hello"
+    var flag: Bool = true
+    var count: Int = 7
+    var optionalName: String? = nil
+    var optionalValue: Int? = 99
+    var nested: DumpNestedState = .init()
+}
+
 struct NestedReduceFromState: StorableState, ReducerLoadableState, ActionBindable {
     typealias BindAction = NestedAction
-    
+
     var stateA: Bool = false
     var stateB: Bool = false
-    
+
     static func loadReducers(on store: Store<NestedReduceFromState>) {
         store.registerDefault { state, action in
             switch action {
@@ -1031,10 +1178,10 @@ struct NestedReduceFromState: StorableState, ReducerLoadableState, ActionBindabl
 
 struct NestedReduceToState: StorableState, ReducerLoadableState, ActionBindable {
     typealias BindAction = NestedAction
-    
+
     var stateA: Bool = false
     var stateB: Bool = false
-    
+
     static func loadReducers(on store: Store<NestedReduceToState>) {
         store.registerDefault { state, action in
             switch action {
@@ -1049,10 +1196,10 @@ struct NestedReduceToState: StorableState, ReducerLoadableState, ActionBindable 
 
 struct RecurseReduceState: StorableState, ReducerLoadableState, ActionBindable {
     typealias BindAction = NestedAction
-    
+
     var stateA: Bool = false
     var stateB: Bool = false
-    
+
     static func loadReducers(on store: Store<RecurseReduceState>) {
         store.registerDefault { [weak store] state, action in
             switch action {

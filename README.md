@@ -13,7 +13,7 @@ DataFlow 是自定义 RSV(Resource & State & View) 设计模式中 State 层的�
 
 ## 依赖
 
-- iOS 13.0+ / macOS 10.15+
+- iOS 16.0+ / macOS 13.0+
 - Xcode 26.0+
 - Swift 6.2+
 
@@ -21,22 +21,23 @@ DataFlow 是自定义 RSV(Resource & State & View) 设计模式中 State 层的�
 
 该模块包含几个概念需要提前了解:
 
-- State: 需要存储的状态，值类型，可以包含各种可存储数据
-- Store: 存储器，引用类型。用于保存状态，提供给界面绑定并分发和处理界面事件
-- Action: 事件，一般用枚举。具有唯一性和可处理性
+- **State**: 需要存储的状态，值类型，可以包含各种可存储数据
+- **Store**: 存储器，引用类型。用于保存状态，提供给界面绑定并分发和处理界面事件
+- **Action**: 事件，一般用枚举。具有唯一性和可处理性
 
 当前的 State 是以协议的方式定义的，包含如下几个协议:
 
 - 基础协议
-  - StorableState: 可存储的状态，这也是最基础的状态协议
-  - InitializableState: 可直接无参数初始化的状态
-  - StateContainable: 可容纳子状态的状态，实际定义未继承 StorableState
-  - AttachableState: 可附加于其他状态的状态
-  - ReducerLoadableState: 可自动加载处理器的状态
+  - `StorableState`: 可存储的状态（需 `Sendable`），最基础的状态协议
+  - `InitializableState`: 可直接无参数初始化的状态
+  - `UseInitializableState`: 与 `InitializableState` 类似，额外提供对应 Store 的 init 方法
+  - `StateContainable`: 可容纳子状态的标记协议（需 `Sendable`），约束 Store 可注册子 Store
+  - `AttachableState`: 可附加于其他状态的状态
+  - `ReducerLoadableState`: 可自动加载处理器的状态
 
 - 扩展协议
-  - SharableState: 可共享的状态
-  - FullSharableState: 完整的可共享状态，包含 SharableState、ReducerLoadableState、 ActionBindable
+  - `SharableState`: 可共享的状态
+  - `FullSharableState`: 完整的可共享状态，包含 `SharableState`、`ReducerLoadableState`、`ActionBindable`
 
 ## 安装
 
@@ -71,12 +72,22 @@ import DataFlow
 import SwiftUI
 
 struct NormalView: View {
-    @ObservedObject var normalStore = Store<NormalState>.box(NormalState())
-    
+    @StateObject var normalStore = Store<NormalState>.box(NormalState())
+
     var body: some View {
         Text(normalStore.name)
     }
 }
+```
+
+3、在非隔离域安全读取状态属性
+
+```swift
+// subscript 自动匹配只读 KeyPath，nonisolated 可跨线程调用
+let name = normalStore.name
+
+// 显式调用 stateValue，适用于 nonisolated 域中 var 属性的读取
+let name = normalStore.stateValue(\.name)
 ```
 
 ### SharableState 共享状态使用
@@ -101,7 +112,7 @@ import SwiftUI
 
 struct NormalSharedView: View {
     @ObservedObject var normalStore: Store<NormalSharedState> = .shared
-    
+
     var body: some View {
         Text(normalStore.name)
     }
@@ -153,7 +164,7 @@ import SwiftUI
 
 struct NormalSharedView: View {
     @ObservedObject var normalStore: Store<NormalSharedState> = .shared
-    
+
     var body: some View {
         VStack {
             Text(normalStore.name)
@@ -164,6 +175,59 @@ struct NormalSharedView: View {
     }
 }
 ```
+
+### StateContainable 子状态使用
+
+当一个状态需要包含子状态时，使用 `StateContainable` 协议：
+
+```swift
+import DataFlow
+
+struct ParentState: StorableState, StateContainable {
+    var title: String = ""
+}
+
+struct ChildState: StorableState {
+    var count: Int = 0
+}
+```
+
+在 Store 中注册子 Store：
+
+```swift
+let parentStore = Store<ParentState>.box(ParentState())
+let childStore = Store<ChildState>.box(ChildState())
+
+// 注册子 Store（要求 State: StateContainable）
+parentStore.addSubStore(childStore)
+
+// 获取子 Store
+let retrieved = parentStore.getSubStore() as Store<ChildState>?
+```
+
+### 调试
+
+在 LLDB 中使用 `po` 命令查看 Store 的完整状态树：
+
+```swift
+// 打印当前 Store 及所有子 Store 的状态（JSON 格式）
+po store.dumpState()
+```
+
+输出示例：
+
+```json
+{
+  "name": "hello",
+  "subStates": {
+    "ChildState": {
+      "count": 42
+    }
+  }
+}
+```
+
+`po store` 可查看 Store 的属性概览（通过 `CustomReflectable`）。
 
 ## 作者
 

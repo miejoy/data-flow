@@ -5,21 +5,23 @@
 //  Created by 黄磊 on 2022/4/23.
 //
 
-import XCTest
+import Testing
+import Foundation
 @testable import DataFlow
 @testable import ModuleMonitor
 
+@Suite(.serialized)
 @MainActor
-class SharedStateTests: XCTestCase {
+struct SharedStateTests {
     
     // 正常状态的获取
+    @Test
     func testSharedNormalState() {
-        
         let shared = Store<NormalSharedState>.shared
         
         let saved = s_mapSharedStore[ObjectIdentifier(NormalSharedState.self)] as! Store<NormalSharedState>
         
-        XCTAssert(shared === saved)
+        #expect(shared === saved)
         
         let shared1 = Store<NormalSharedState>.shared
         let saved1 = s_mapSharedStore[ObjectIdentifier(NormalSharedState.self)] as! Store<NormalSharedState>
@@ -27,53 +29,52 @@ class SharedStateTests: XCTestCase {
         let shared2 = NormalSharedState.sharedStore
         let saved2 = s_mapSharedStore[ObjectIdentifier(NormalSharedState.self)] as! Store<NormalSharedState>
         
-    
-        XCTAssert(shared === shared1)
-        XCTAssert(shared1 === saved1)
-        XCTAssert(saved1 === shared2)
-        XCTAssert(shared2 === saved2)
+        #expect(shared === shared1)
+        #expect(shared1 === saved1)
+        #expect(saved1 === shared2)
+        #expect(shared2 === saved2)
     }
     
     // 可加载处理器状态的获取
+    @Test
     func testSharedReducerState() {
-        
         let shared = Store<SharedReducerState>.shared
         
         let saved = s_mapSharedStore[ObjectIdentifier(SharedReducerState.self)] as! Store<SharedReducerState>
         
-        XCTAssert(shared === saved)
-        XCTAssert(sharedReducerStateIsLoad)
+        #expect(shared === saved)
+        #expect(sharedReducerStateIsLoad)
         
         let shared1 = Store<SharedReducerState>.shared
         let saved1 = s_mapSharedStore[ObjectIdentifier(SharedReducerState.self)] as! Store<SharedReducerState>
-    
-        XCTAssert(shared === shared1)
-        XCTAssert(shared1 === saved1)
-    }
         
+        #expect(shared === shared1)
+        #expect(shared1 === saved1)
+    }
+    
+    @Test
     func testFullShareStore() {
         s_mapSharedStore.removeAll()
         fullSharedStateReducerCall = false
         let sharedStore = Store<FullSharedState>.shared
-        XCTAssert(fullSharedStateReducerCall)
-        XCTAssertEqual(sharedStore.content, "")
+        #expect(fullSharedStateReducerCall)
+        #expect(sharedStore.content == "")
         
         let content = "content"
         sharedStore.send(action: .changeContent(content))
-        XCTAssertEqual(sharedStore.content, content)
+        #expect(sharedStore.content == content)
     }
     
+    @Test
     func testDuplicateSharedState() {
-        
         StoreMonitor.shared.arrObservers = []
         @MainActor
         final class Observer: StoreMonitorObserver {
             var duplicateFatalErrorCall = false
             func receiveStoreEvent(_ event: StoreEvent) {
                 if case .fatalError(let message) = event,
-                    message == ("Attach State[DuplicateSharedState] to UpState[AppState] " +
-                                "with stateId[NormalSharedState] failed: " +
-                                "exists State[NormalSharedState] with same stateId!") {
+                    message == ("Add SubStore[DuplicateSharedState] to UpState[AppState] " +
+                                "with stateId[NormalSharedState] failed: exists SubStore with same stateId!") {
                     duplicateFatalErrorCall = true
                 }
             }
@@ -82,53 +83,56 @@ class SharedStateTests: XCTestCase {
         let cancellable = StoreMonitor.shared.addObserver(observer)
         
         _ = Store<NormalSharedState>.shared
-        XCTAssert(!observer.duplicateFatalErrorCall)
+        #expect(observer.duplicateFatalErrorCall == false)
         
         _ = Store<DuplicateSharedState>.shared
-        XCTAssert(observer.duplicateFatalErrorCall)
+        #expect(observer.duplicateFatalErrorCall)
         
         cancellable.cancel()
     }
     
+    @Test
     func testCreateSharedStoreOnMultiThread() {
         s_mapSharedStore.removeAll()
         
-        var expectations: [XCTestExpectation] = []
         nonisolated(unsafe) var count: Int = 0
         
-        (0..<5).forEach { _ in
-            let expectation = expectation(description: "This should complete")
-            expectations.append(expectation)
+        let group = DispatchGroup()
+        for _ in 0..<5 {
+            group.enter()
             DispatchQueue.global().async {
                 if (s_mapSharedStore[ObjectIdentifier(MultiThreadSharedState.self)] == nil) {
                     sleep(1)
                     _ = Store<MultiThreadSharedState>.shared
-                    
-                    XCTAssertNotNil(s_mapSharedStore[ObjectIdentifier(MultiThreadSharedState.self)])
-                    count += 1
+                    if s_mapSharedStore[ObjectIdentifier(MultiThreadSharedState.self)] != nil {
+                        count += 1
+                    }
                 }
-                expectation.fulfill()
+                group.leave()
             }
         }
         
-        XCTAssertNil(s_mapSharedStore[ObjectIdentifier(MultiThreadSharedState.self)])
+        // 所有任务在 sleep(1)，此时 store 尚未创建
+        #expect(s_mapSharedStore[ObjectIdentifier(MultiThreadSharedState.self)] == nil)
         
-        wait(for: expectations, timeout: 5)
+        _ = group.wait(timeout: .now() + 10)
         
-        XCTAssertNotNil(s_mapSharedStore[ObjectIdentifier(MultiThreadSharedState.self)])
-        XCTAssertTrue(count >= 2) // 至少触发两次
+        #expect(s_mapSharedStore[ObjectIdentifier(MultiThreadSharedState.self)] != nil)
+        #expect(count >= 2) // 至少触发两次
     }
     
+    @Test
     func testCreateSharedStoreOnOtherSharedStoreCreation() {
         s_mapSharedStore.removeAll()
         
         _ = Store<MultiThreadNestSharedState>.shared
         
-        XCTAssertNotNil(s_mapSharedStore[ObjectIdentifier(MultiThreadNestSharedState.self)])
-        XCTAssertNotNil(s_mapSharedStore[ObjectIdentifier(MultiThreadSubSharedState.self)])
-        XCTAssertEqual(s_mapSharedStore.count, 3)
+        #expect(s_mapSharedStore[ObjectIdentifier(MultiThreadNestSharedState.self)] != nil)
+        #expect(s_mapSharedStore[ObjectIdentifier(MultiThreadSubSharedState.self)] != nil)
+        #expect(s_mapSharedStore.count == 3)
     }
     
+    @Test
     func testUseBoxOnSharableState() {
         StoreMonitor.shared.arrObservers = []
         @MainActor
@@ -144,13 +148,13 @@ class SharedStateTests: XCTestCase {
         }
         let observer = Observer()
         let cancellable = StoreMonitor.shared.addObserver(observer)
-                
+        
         // 配置 useBoxOnShared，不会 fatalError
         _ = Store<NormalSharedState>.box(.init(), configs: [.make(.useBoxOnShared, true)])
-        XCTAssert(!observer.duplicateFatalErrorCall)
+        #expect(observer.duplicateFatalErrorCall == false)
         
         _ = Store<NormalSharedState>.box()
-        XCTAssert(observer.duplicateFatalErrorCall)
+        #expect(observer.duplicateFatalErrorCall)
         
         cancellable.cancel()
     }
