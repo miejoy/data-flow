@@ -8,6 +8,7 @@
 
 import Foundation
 import Combine
+import os
 
 /// 事件处理器
 public typealias Reducer<StorableState,Action> = @MainActor (_ state: inout StorableState, _ action: Action) -> Void
@@ -30,8 +31,6 @@ public final class Store<State: StorableState>: ObservableObject {
     public typealias StateChangeCallback = (_ new: State, _ old: State) -> Void
     typealias StateValueChangeCallback = (_ new: Any, _ old: Any, _ newState: State, _ oldState: State) -> Void
     
-    
-
     /// 状态值监听者
     struct StateValueObserver {
         let observerId: Int
@@ -43,9 +42,10 @@ public final class Store<State: StorableState>: ObservableObject {
     }
     
     /// 保存的状态，供外部调用
+    /// 读写均在 @MainActor 隔离域内，内部通过 _stateLock (OSAllocatedUnfairLock) 保护与跨线程读的并发安全
     public var state : State {
         get {
-            _state
+            _stateLock.withLock { $0 }
         }
         set {
             StoreMonitor.shared.record(event: .willDirectUpdateStateOn(self.eraseToAny(), newValue))
@@ -55,9 +55,9 @@ public final class Store<State: StorableState>: ObservableObject {
             updateStateWithNotify(newValue)
         }
     }
-    /// 实际保存的状态，仅可内部调用
+    /// 实际保存的状态，通过 OSAllocatedUnfairLock 保护读写
     /// 不使用 @Published，因为 nonisolated 不支持 property wrapper；改为在 updateStateWithNotify 中手动触发 objectWillChange
-    var _state : State
+    let _stateLock: OSAllocatedUnfairLock<State>
     
     // 这两个属性为了解决一个 state 在处理一个 action 的途中触发需要处理另一个 action
     // 当前正在处理的 action
@@ -93,7 +93,7 @@ public final class Store<State: StorableState>: ObservableObject {
     /// nonisolated 构造器，允许在任意隔离域中创建 Store 实例
     /// 构造完成后会在 MainActor 上执行 didBoxed 和 createStore 事件通知
     nonisolated required init(state: State, configs: [StoreConfigPair] = []) {
-        self._state = state
+        self._stateLock = .init(initialState: state)
         self.initConfig = .init(configs)
         // 所有状态存到 store，都先将 stateId 存到 store
         self[.stateId] = state.stateId
@@ -107,26 +107,33 @@ public final class Store<State: StorableState>: ObservableObject {
     // MARK: - Get & Set
     
     /// 动态嫁接 State 属性调用，可嫁接只读属性
-    public subscript<Subject>(dynamicMember keyPath: KeyPath<State, Subject>) -> Subject {
+    public nonisolated subscript<Subject>(dynamicMember keyPath: KeyPath<State, Subject>) -> Subject {
         get {
-            return _state[keyPath: keyPath]
+            return _stateLock.withLockUnchecked { $0[keyPath: keyPath] }
         }
+    }
+    
+    /// 在非隔离域安全读取 State 的指定属性，通过 _stateLock 保护
+    /// - Parameter keyPath: 要读取的属性路径
+    /// - Returns: 对应属性的值
+    public nonisolated func stateValue<Subject: Sendable>(_ keyPath: KeyPath<State, Subject>) -> Subject {
+        _stateLock.withLockUnchecked { $0[keyPath: keyPath] }
     }
     
     /// 动态嫁接可比较的 State 属性调用
     public subscript<Subject: Equatable>(dynamicMember keyPath: WritableKeyPath<State, Subject>) -> Subject {
         get {
-            return _state[keyPath: keyPath]
+            return self.state[keyPath: keyPath]
         }
         set {
             if StoreMonitor.shared.useStrictMode {
                 StoreMonitor.shared.fatalError("Never update state directly! Use send/dispatch action instead")
             }
-            if _state[keyPath: keyPath] == newValue {
+            if self.state[keyPath: keyPath] == newValue {
                 // 相同值不更新 state
                 return
             }
-            var state = _state
+            var state = self.state
             state[keyPath: keyPath] = newValue
             StoreMonitor.shared.record(event: .willDirectUpdateStateValueOn(self.eraseToAny(), keyPath, newValue))
             updateStateWithNotify(state, on: keyPath)
@@ -136,13 +143,13 @@ public final class Store<State: StorableState>: ObservableObject {
     /// 动态嫁接 State 属性调用（暂时保留，后面考虑是否移除）
     public subscript<Subject>(dynamicMember keyPath: WritableKeyPath<State, Subject>) -> Subject {
         get {
-            return _state[keyPath: keyPath]
+            return self.state[keyPath: keyPath]
         }
         set {
             if StoreMonitor.shared.useStrictMode {
                 StoreMonitor.shared.fatalError("Never update state directly! Use send/dispatch action instead")
             }
-            var state = _state
+            var state = self.state
             state[keyPath: keyPath] = newValue
             StoreMonitor.shared.record(event: .willDirectUpdateStateValueOn(self.eraseToAny(), keyPath, newValue))
             updateStateWithNotify(state, on: keyPath)
@@ -447,7 +454,7 @@ public final class Store<State: StorableState>: ObservableObject {
         }
         
         var isChange = false
-        var newState = _state {
+        var newState = self.state {
             didSet {
                 isChange = true
             }
@@ -479,17 +486,17 @@ public final class Store<State: StorableState>: ObservableObject {
     
     /// 更新状态并通知监听者
     func updateStateWithNotify(_ state: State, on keyPath: AnyKeyPath? = nil) {
-        let oldState = _state
+        let oldState = self.state
         objectWillChange.send()
-        _state = state
+        _stateLock.withLock { $0 = state }
         for observer in arrObservers {
-            observer.run(_state, oldState)
+            observer.run(self.state, oldState)
         }
         StoreMonitor.shared.record(event: .didUpdateStateOn(self.eraseToAny(), oldState: oldState))
         if let keyPath = keyPath {
-            notifyValueChange(to: _state, oldState, on: keyPath)
+            notifyValueChange(to: self.state, oldState, on: keyPath)
         } else {
-            notifyChange(to: _state, oldState)
+            notifyChange(to: self.state, oldState)
         }
     }
     
@@ -530,8 +537,9 @@ public final class Store<State: StorableState>: ObservableObject {
         // 由于 Store 是 @MainActor 类，Swift 运行时保证其 deinit 在主线程调用，因此 assumeIsolated 是安全的
         MainActor.assumeIsolated {
             StoreMonitor.shared.record(event: .destroyStore(self.eraseToAny()))
+            let state = self._stateLock.withLock { $0 }
             for callback in self.destroyCallbacks {
-                callback(self._state)
+                callback(state)
             }
         }
     }
@@ -552,23 +560,33 @@ struct StateObserver<State:StorableState> {
 
 // MARK: - ======= 扩展方法 =======
 
-// MARK: - StateContainable
+// MARK: - SubStore 管理
 
-/// 可容纳子状态的状态
-extension Store where State : StateContainable {
-    /// 添加子状态。注：SharableState 会自动调用
-    ///
-    /// - Parameter subStore: 被添加的子状态
-    public func add<SubState: AttachableState>(subStore: Store<SubState>) where SubState.UpState == State {
-        self._state.updateSubState(state: subStore.state)
-        // 添加当前 store（即 subStore 对应 UpStore）对 subStore 的监听
-        self.observe(store: subStore) { [weak self] new, _ in
-            self?.state.updateSubState(state: new)
+extension StoreStorageKey where Value == [String: WeakStore] {
+    static let subStores: Self = .init("subStores")
+}
+
+extension Store where State: StateContainable {
+    /// 添加子 Store 引用（weak 引用，subStore 生命周期由外部管理）
+    public func addSubStore<S: AttachableState>(_ subStore: Store<S>) where S.UpState == State {
+        var stores = self[.subStores] ?? [:]
+        let stateId = subStore.stateId
+        if let existing = stores[stateId], existing.store != nil {
+            StoreMonitor.shared.fatalError(
+                "Add SubStore[\(String(describing: S.self))] to UpState[\(String(describing: State.self))] " +
+                "with stateId[\(stateId)] failed: exists SubStore with same stateId!"
+            )
+            return
         }
-        // subStore 销毁时，需要清空上级 store 保存的状态
-        subStore.addDestroyCallback { [weak self] state in
-            self?.state.subStates.removeValue(forKey: state.stateId)
-        }
+        stores[stateId] = WeakStore(subStore)
+        self[.subStores] = stores
+    }
+
+    /// 获取子 Store
+    public func getSubStore<S: AttachableState>(of type: S.Type) -> Store<S>? where S.UpState == State {
+        let stateId = String(describing: S.self)
+        guard let box = (self[.subStores] ?? [:])[stateId] else { return nil }
+        return box.store as? Store<S>
     }
 }
 

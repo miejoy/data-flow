@@ -30,10 +30,8 @@ public protocol InitializableState {
 /// 使用的可直接初始化的状态，这里与 InitializableState 唯一区别就是 UseInitializableState 会提供一个对应 Store 的 init 方法
 public protocol UseInitializableState: InitializableState {}
 
-/// 可容纳子状态的
-public protocol StateContainable: Sendable {
-    var subStates : [String: StorableState] { get set }
-}
+/// 可容纳子状态的标记协议，仅用于约束 Store 可注册子 Store
+public protocol StateContainable: Sendable {}
 
 /// 可附加于其他状态的状态
 public protocol AttachableState: StorableState {
@@ -65,13 +63,6 @@ extension StorableState {
 }
 
 
-extension StateContainable {
-    /// 更新子状态
-    public mutating func updateSubState<State: AttachableState>(state: State) where State.UpState == Self {
-        subStates[state.stateId] = state
-    }    
-}
-
 extension ReducerLoadableState {
     @MainActor
     public static func didBoxed(on store: Store<some StorableState>) {
@@ -88,9 +79,4 @@ extension Never : StorableState {
     public init() { fatalError("Never can not init") }
 }
 
-extension Never : StateContainable {
-    public var subStates: [String : StorableState] {
-        get { fatalError("Never can not get subStates") }
-        set { fatalError("Never can not set subStates") }
-    }
-}
+extension Never : StateContainable {}

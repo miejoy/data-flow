@@ -13,11 +13,10 @@ public struct AnyStore: Sendable {
     public let stateType: StorableState.Type
     public let store : Sendable
     public let stateId : String
-    @MainActor
     public var state: StorableState {
         (store as! StateContainer).innerState
     }
-    
+
     init<State: StorableState>(store: Store<State>) {
         self.stateType = State.self
         self.store = store
@@ -36,13 +35,33 @@ extension Store {
 
 // MARK: - StateContainer
 
-protocol StateContainer: Sendable {
-    @MainActor
+protocol StateContainer: AnyObject, Sendable {
     var innerState: StorableState { get }
+    var subContainers: [StateContainer] { get }
 }
 
+// MARK: - Store: StateContainer
+
 extension Store: StateContainer {
-    var innerState: StorableState {
-        state
+    nonisolated var innerState: StorableState {
+        _stateLock.withLock { $0 }
+    }
+
+    nonisolated var subContainers: [StateContainer] {
+        guard let subStores: [String: WeakStore] = self[.subStores] else { return [] }
+        return subStores
+            .sorted { $0.key < $1.key }
+            .compactMap { $0.value.store }
+    }
+}
+
+// MARK: - WeakStore
+
+/// 弱引用持有底层 Store，销毁后自动置 nil
+struct WeakStore: Sendable {
+    weak var store: StateContainer?
+
+    init(_ store: StateContainer) {
+        self.store = store
     }
 }

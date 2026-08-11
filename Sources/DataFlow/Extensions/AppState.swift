@@ -9,8 +9,6 @@
 /// 定义默认 App 状态
 public struct AppState : StateContainable, SharableState {
     
-    public var subStates: [String : StorableState] = [:]
-        
     public typealias UpState = Never
     
     public init() {

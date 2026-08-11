@@ -33,14 +33,7 @@ extension Store where State : SharableState {
     @MainActor private static func attachToUpStore(_ store: Store<State>) {
         guard !(State.UpState.self is Never.Type) else { return }
         let upStore = Store<State.UpState>.shared
-        if let existState = upStore.subStates[store.state.stateId] {
-            StoreMonitor.shared.fatalError(
-                "Attach State[\(String(describing: State.self))] to UpState[\(String(describing: State.UpState.self))] " +
-                "with stateId[\(store.state.stateId)] failed: " +
-                "exists State[\(String(describing: type(of: existState)))] with same stateId!"
-            )
-        }
-        upStore.add(subStore: store)
+        upStore.addSubStore(store)
     }
     
     /// 私有共享状态存储器创建，支持从任意线程调用

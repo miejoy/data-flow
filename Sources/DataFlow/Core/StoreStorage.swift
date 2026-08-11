@@ -212,14 +212,8 @@ extension DefaultStoreStorageKey where Value == String {
 }
 
 extension Store {
-    // 提供非隔离域的 stateId 访问，在主线程访问时是可靠的，非主线程访问是原始的
+    // 提供非隔离域的 stateId 访问，通过 _stateLock 保护读取
     nonisolated public var stateId: String {
-        if Thread.isMainThread {
-            MainActor.assumeIsolated {
-                self._state.stateId
-            }
-        } else {
-            self[.stateId]
-        }
+        _stateLock.withLock { $0.stateId }
     }
 }
