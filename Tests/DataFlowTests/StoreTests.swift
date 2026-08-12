@@ -874,26 +874,26 @@ struct StoreTests {
     func testMultipleSubStoresWithSameType() {
         let upStore = Store<ContainState>.box(ContainState())
 
-        // 同类型两个不同实例，用不同 stateId 挂到同一 UpStore
-        let store1 = Store<MultiInstanceSubState>.box(MultiInstanceSubState())
-        let store2 = Store<MultiInstanceSubState>.box(MultiInstanceSubState())
+        // 同类型两个不同实例，通过实例 stateId 区分，挂到同一 UpStore
+        let store1 = Store<InstanceIdSubState>.box(InstanceIdSubState(tag: "a", stateId: "instance1"))
+        let store2 = Store<InstanceIdSubState>.box(InstanceIdSubState(tag: "b", stateId: "instance2"))
 
-        upStore.addSubStore(store1, stateId: "instance1")
-        upStore.addSubStore(store2, stateId: "instance2")
+        upStore.addSubStore(store1)
+        upStore.addSubStore(store2)
 
         // 用不同 stateId 分别获取
-        #expect(upStore.getSubStore(of: MultiInstanceSubState.self, stateId: "instance1") != nil)
-        #expect(upStore.getSubStore(of: MultiInstanceSubState.self, stateId: "instance2") != nil)
+        #expect(upStore.getSubStore(of: InstanceIdSubState.self, stateId: "instance1")?.state.tag == "a")
+        #expect(upStore.getSubStore(of: InstanceIdSubState.self, stateId: "instance2")?.state.tag == "b")
 
-        // 不传 stateId 用 defaultStateId，找不到（因为 add 时用的是自定义 stateId）
-        #expect(upStore.getSubStore(of: MultiInstanceSubState.self) == nil)
+        // 不传 stateId 用 defaultStateId，找不到（因为 add 时用的是实例 stateId）
+        #expect(upStore.getSubStore(of: InstanceIdSubState.self) == nil)
     }
 
     @Test
     func testDefaultStateIdUsedWhenNoCustomStateId() {
         let upStore = Store<ContainState>.box(ContainState())
 
-        // 不传 stateId，add 和 get 都走 defaultStateId
+        // stateId 未自定义，add 用 stateId（= defaultStateId），get 不传也用 defaultStateId
         let subStore = Store<MultiInstanceSubState>.box(MultiInstanceSubState())
         upStore.addSubStore(subStore)
 
@@ -903,6 +903,74 @@ struct StoreTests {
 
         // 传与 defaultStateId 一致的 stateId 也能获取
         #expect(upStore.getSubStore(of: MultiInstanceSubState.self, stateId: "MultiInstanceSubState") != nil)
+    }
+
+    @Test
+    func testAddSubStoreWithWildcardUpState() {
+        // 重载 2：父精确 + 子通配（State.SubState == S, S.UpState == AnyState）
+        let upStore = Store<SpecificContainState>.box(SpecificContainState())
+        let subStore = Store<WildcardSubState>.box(WildcardSubState(tag: "wild"))
+        upStore.addSubStore(subStore)
+
+        #expect(upStore.getSubStore(of: WildcardSubState.self) != nil)
+        #expect(upStore.getSubStore(of: WildcardSubState.self)?.state.tag == "wild")
+    }
+
+    @Test
+    func testSubStateIds() {
+        let upStore = Store<ContainState>.box(ContainState())
+        #expect(upStore.subStateIds.isEmpty)
+
+        let sub1 = Store<ContainSubState>.box(ContainSubState())
+        upStore.addSubStore(sub1)
+
+        let sub2 = Store<MultiInstanceSubState>.box(MultiInstanceSubState())
+        upStore.addSubStore(sub2)
+
+        // 按 stateId 排序
+        #expect(upStore.subStateIds == ["ContainSubState", "MultiInstanceSubState"])
+    }
+
+    @Test
+    func testSubContainers() {
+        let upStore = Store<ContainState>.box(ContainState())
+        #expect(upStore.subContainers.isEmpty)
+
+        let sub1 = Store<ContainSubState>.box(ContainSubState())
+        upStore.addSubStore(sub1)
+        let sub2 = Store<MultiInstanceSubState>.box(MultiInstanceSubState())
+        upStore.addSubStore(sub2)
+
+        #expect(upStore.subContainers.count == 2)
+    }
+
+    @Test
+    func testSubStoreRuntimeCheckMismatch() {
+        // 重载 1 运行时校验：State.SubState != S 且 != AnyState 时 fatalError
+        StoreMonitor.shared.arrObservers = []
+        StoreMonitor.shared.useStrictMode = true
+        defer { StoreMonitor.shared.useStrictMode = false }
+        @MainActor
+        final class Observer: StoreMonitorObserver {
+            var fatalErrorCalled = false
+            func receiveStoreEvent(_ event: StoreEvent) {
+                if case .fatalError(let message) = event,
+                    message.contains("is neither") {
+                    fatalErrorCalled = true
+                }
+            }
+        }
+        let observer = Observer()
+        let cancellable = StoreMonitor.shared.addObserver(observer)
+
+        // MismatchContainState.SubState == ContainSubState，但挂载 MismatchSubState
+        let upStore = Store<MismatchContainState>.box(MismatchContainState())
+        let subStore = Store<MismatchSubState>.box(MismatchSubState())
+        upStore.addSubStore(subStore)
+
+        #expect(observer.fatalErrorCalled)
+
+        cancellable.cancel()
     }
 
     @Test
@@ -1157,11 +1225,49 @@ struct ContainSubState : StorableState, AttachableState {
     var testValue : Int = 0
 }
 
+/// 精确 SubState 的父状态，SubState 指定为其子状态类型
+struct SpecificContainState: StorableState, StateContainable {
+    typealias UpState = AppState
+    typealias SubState = WildcardSubState
+    public init() {}
+}
+
+/// 通配子状态，UpState 设为 AnyState，可挂载到任何指定 SubState 为自己的 StateContainable
+struct WildcardSubState: StorableState, AttachableState {
+    typealias UpState = AnyState
+    var tag: String = ""
+}
+
+/// 不匹配的 SubState 类型，用于测试运行时校验
+struct MismatchContainState: StorableState, StateContainable {
+    typealias UpState = AppState
+    typealias SubState = ContainSubState
+    public init() {}
+}
+
+/// UpState 指向 MismatchContainState，但类型不匹配其 SubState（ContainSubState）
+struct MismatchSubState: StorableState, AttachableState {
+    typealias UpState = MismatchContainState
+    var tag: String = ""
+}
+
 /// 自定义 defaultStateId 的 AttachableState，用于测试多实例场景
 struct MultiInstanceSubState : StorableState, AttachableState {
     typealias UpState = ContainState
     var tag: String = ""
     static var defaultStateId: String { "MultiInstanceSubState" }
+}
+
+/// 带实例级 stateId 的 AttachableState，用于测试同类型多实例挂载
+struct InstanceIdSubState : StorableState, AttachableState {
+    typealias UpState = ContainState
+    var tag: String = ""
+    /// 实例级 stateId，每个实例可不同
+    var stateId: String
+    init(tag: String = "", stateId: String) {
+        self.tag = tag
+        self.stateId = stateId
+    }
 }
 
 struct SpecificState : StorableState, ActionBindable {

@@ -31,11 +31,18 @@ public protocol InitializableState {
 public protocol UseInitializableState: InitializableState {}
 
 /// 可容纳子状态的标记协议，仅用于约束 Store 可注册子 Store
-public protocol StateContainable: Sendable {}
+public protocol StateContainable: Sendable {
+    /// 子状态类型约束，默认 AnyState 代表可挂载任何 UpState 是自己的 AttachableState
+    /// 设为具体类型则只接受该类型作为子 Store
+    associatedtype SubState = AnyState
+}
+
+/// 通配类型，与 Never 结构相同（无 case 不可实例化），用于 SubState/UpState 通配语义
+public enum AnyState: StateContainable {}
 
 /// 可附加于其他状态的状态
 public protocol AttachableState: StorableState {
-    /// 上一级状态
+    /// 上一级状态，设为 Never 代表向上的终点，设为 AnyState 代表可挂载到任何 SubState 非 AnyState 的 StateContainable 上
     associatedtype UpState : StateContainable
     /// 默认 stateId，默认为实现类型名，可在 addSubStore/getSubStore 时作为 key 使用
     static var defaultStateId: String { get }
@@ -44,6 +51,11 @@ public protocol AttachableState: StorableState {
 extension AttachableState {
     public static var defaultStateId: String {
         String(describing: Self.self)
+    }
+
+    /// AttachableState 的 stateId 默认使用 defaultStateId
+    public var stateId: String {
+        Self.defaultStateId
     }
 }
 

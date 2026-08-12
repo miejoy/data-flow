@@ -48,8 +48,7 @@ extension Store: StateContainer {
     }
 
     nonisolated var subContainers: [StateContainer] {
-        guard let subStores: [String: WeakStore] = self[.subStores] else { return [] }
-        return subStores
+        self[.subStores]
             .sorted { $0.key < $1.key }
             .compactMap { $0.value.store }
     }

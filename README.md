@@ -178,39 +178,53 @@ struct NormalSharedView: View {
 
 ### StateContainable 子状态使用
 
-当一个状态需要包含子状态时，使用 `StateContainable` 协议：
+当一个状态需要包含子状态时，父 State 遵循 `StateContainable`，子 State 遵循 `AttachableState`：
 
 ```swift
 import DataFlow
 
+// 父状态：遵循 StateContainable
 struct ParentState: StorableState, StateContainable {
     var title: String = ""
 }
 
-struct ChildState: StorableState {
+// 子状态：遵循 AttachableState，指定 UpState 为父状态
+struct ChildState: AttachableState {
+    typealias UpState = ParentState
     var count: Int = 0
 }
 ```
 
-在 Store 中注册子 Store：
+在 Store 中注册和获取子 Store：
 
 ```swift
 let parentStore = Store<ParentState>.box(ParentState())
 let childStore = Store<ChildState>.box(ChildState())
 
-// 注册子 Store（要求 ParentState: StateContainable, ChildState: AttachableState）
+// 注册子 Store
 parentStore.addSubStore(childStore)
 
 // 获取子 Store（不传 stateId 时使用 ChildState.defaultStateId）
 let retrieved = parentStore.getSubStore(of: ChildState.self)
+```
 
-// 同类型多实例场景：用不同 stateId 挂到同一 parentStore
-let childStore2 = Store<ChildState>.box(ChildState())
-parentStore.addSubStore(childStore2, stateId: "child2")
+同类型多实例场景——子 State 用存储属性覆盖 `stateId`：
+
+```swift
+struct ChildState: AttachableState {
+    typealias UpState = ParentState
+    var stateId: String = ChildState.defaultStateId  // 存储属性，可在 init 时指定
+    var count: Int = 0
+}
+
+let childStore2 = Store<ChildState>.box(ChildState(stateId: "child2"))
+parentStore.addSubStore(childStore2)
 let retrieved2 = parentStore.getSubStore(of: ChildState.self, stateId: "child2")
 ```
 
-> **stateId 机制**：`addSubStore` 默认用 `subStore.stateId`（即 `defaultStateId`，默认为类型名）作为 key；`getSubStore` 默认用 `S.defaultStateId`。需要同类型多实例时，通过 `stateId` 参数指定不同 key。
+> **stateId 机制**：`addSubStore` 用 `subStore.stateId`（默认为 `defaultStateId`，即类型名）作为 key；`getSubStore` 不传 `stateId` 时用 `S.defaultStateId`。子 Store 销毁时自动从父 Store 移除，无需手动清理。
+
+> **通配挂载**：若子 State 的 `UpState` 设为 `AnyState`，则可挂载到任何 `StateContainable` 的父 Store（此时父 State 的 `SubState` 也需为 `AnyState`，即默认值）。
 
 ### 调试
 

@@ -562,38 +562,88 @@ struct StateObserver<State:StorableState> {
 
 // MARK: - SubStore 管理
 
-extension StoreStorageKey where Value == [String: WeakStore] {
-    static let subStores: Self = .init("subStores")
+extension DefaultStoreStorageKey where Value == [String: WeakStore] {
+    static let subStores: Self = .init("subStores", [:])
 }
 
 extension Store where State: StateContainable {
-    /// 添加子 Store 引用（weak 引用，subStore 生命周期由外部管理）
-    /// - Parameters:
-    ///   - subStore: 子 Store
-    ///   - stateId: 存储 key，不传时使用 subStore.stateId（默认为 defaultStateId）
-    public func addSubStore<S: AttachableState>(_ subStore: Store<S>, stateId: String? = nil) where S.UpState == State {
-        var stores = self[.subStores] ?? [:]
-        let key = stateId ?? subStore.stateId
-        if let existing = stores[key], existing.store != nil {
+
+    // MARK: - 添加子 Store（两个重载）
+
+    /// 子精确（S.UpState == State），父不检查 SubState
+    public func addSubStore<S: AttachableState>(
+        _ subStore: Store<S>
+    ) where S.UpState == State {
+        let subStateType = State.SubState.self
+        if subStateType != S.self && subStateType != AnyState.self {
             StoreMonitor.shared.fatalError(
                 "Add SubStore[\(String(describing: S.self))] to UpState[\(String(describing: State.self))] " +
-                "with stateId[\(key)] failed: exists SubStore with same stateId!"
+                "failed: State.SubState[\(subStateType)] is neither \(S.self) nor AnyState!"
             )
             return
         }
-        stores[key] = WeakStore(subStore)
-        self[.subStores] = stores
+        _addSubStore(subStore)
     }
 
-    /// 获取子 Store
-    /// - Parameters:
-    ///   - type: 子 Store 的 State 类型
-    ///   - stateId: 存储 key，不传时使用 S.defaultStateId
-    /// - Returns: 对应的子 Store，不存在则返回 nil
-    public func getSubStore<S: AttachableState>(of type: S.Type, stateId: String? = nil) -> Store<S>? where S.UpState == State {
+    /// 父精确 + 子通配（State.SubState == S, S.UpState == AnyState）
+    public func addSubStore<S: AttachableState>(
+        _ subStore: Store<S>
+    ) where State.SubState == S, S.UpState == AnyState {
+        _addSubStore(subStore)
+    }
+
+    // MARK: - 内部统一实现
+
+    private func _addSubStore<S: AttachableState>(_ subStore: Store<S>) {
+        let stateId = subStore.stateId
+        if self[.subStores][stateId]?.store != nil {
+            StoreMonitor.shared.fatalError(
+                "Add SubStore[\(String(describing: S.self))] to UpState[\(String(describing: State.self))] " +
+                "with stateId[\(stateId)] failed: exists SubStore with same stateId!"
+            )
+            return
+        }
+        self[.subStores][stateId] = WeakStore(subStore)
+        // 子 Store 销毁时自动从字典移除
+        subStore.addDestroyCallback { [weak self] _ in
+            self?[.subStores].removeValue(forKey: stateId)
+        }
+    }
+
+    // MARK: - 获取子 Store（两个重载，与 addSubStore 对应）
+
+    /// 子精确（S.UpState == State），父不检查 SubState
+    public func getSubStore<S: AttachableState>(
+        of type: S.Type,
+        stateId: String? = nil
+    ) -> Store<S>? where S.UpState == State {
+        _getSubStore(of: type, stateId: stateId)
+    }
+
+    /// 父精确 + 子通配（State.SubState == S, S.UpState == AnyState）
+    public func getSubStore<S: AttachableState>(
+        of type: S.Type,
+        stateId: String? = nil
+    ) -> Store<S>? where State.SubState == S, S.UpState == AnyState {
+        _getSubStore(of: type, stateId: stateId)
+    }
+
+    // MARK: - 内部统一实现
+
+    private func _getSubStore<S: AttachableState>(
+        of type: S.Type,
+        stateId: String?
+    ) -> Store<S>? {
         let key = stateId ?? S.defaultStateId
-        guard let box = (self[.subStores] ?? [:])[key] else { return nil }
+        guard let box = self[.subStores][key] else { return nil }
         return box.store as? Store<S>
+    }
+
+    // MARK: - 获取所有子 State ID（不依赖 SubState/UpState 约束）
+
+    /// 所有子 State 的 stateId
+    public var subStateIds: [String] {
+        self[.subStores].keys.sorted()
     }
 }
 

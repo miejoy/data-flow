@@ -99,13 +99,9 @@ extension Store: CustomReflectable {
         }
 
         // 子 Store
-        if let subStores: [String: WeakStore] = self[.subStores] {
-            let subs = subStores
-                .sorted { $0.key < $1.key }
-                .compactMap { $0.value.store }
-            if !subs.isEmpty {
-                allChildren.append((label: "subStates", value: subs))
-            }
+        let subs = subContainers
+        if !subs.isEmpty {
+            allChildren.append((label: "subStates", value: subs))
         }
 
         return Mirror(self, children: allChildren, displayStyle: .class, ancestorRepresentation: .generated)

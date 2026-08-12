@@ -168,6 +168,80 @@ SharableState can be used across all views
     }
     ```
 
+### StateContainable
+
+When a state needs to contain sub-states, the parent State conforms to `StateContainable` and the child State conforms to `AttachableState`:
+
+```swift
+import DataFlow
+
+// Parent state: conforms to StateContainable
+struct ParentState: StorableState, StateContainable {
+    var title: String = ""
+}
+
+// Child state: conforms to AttachableState, specifying UpState
+struct ChildState: AttachableState {
+    typealias UpState = ParentState
+    var count: Int = 0
+}
+```
+
+Register and retrieve sub-stores:
+
+```swift
+let parentStore = Store<ParentState>.box(ParentState())
+let childStore = Store<ChildState>.box(ChildState())
+
+// Register sub-store
+parentStore.addSubStore(childStore)
+
+// Retrieve sub-store (uses ChildState.defaultStateId when stateId is omitted)
+let retrieved = parentStore.getSubStore(of: ChildState.self)
+```
+
+For multiple instances of the same type, override `stateId` with a stored property:
+
+```swift
+struct ChildState: AttachableState {
+    typealias UpState = ParentState
+    var stateId: String = ChildState.defaultStateId
+    var count: Int = 0
+}
+
+let childStore2 = Store<ChildState>.box(ChildState(stateId: "child2"))
+parentStore.addSubStore(childStore2)
+let retrieved2 = parentStore.getSubStore(of: ChildState.self, stateId: "child2")
+```
+
+> **stateId**: `addSubStore` uses `subStore.stateId` (defaults to `defaultStateId`, i.e. the type name) as the key; `getSubStore` uses `S.defaultStateId` when `stateId` is omitted. Sub-stores are automatically removed from the parent Store upon deallocation.
+
+> **Wildcard mounting**: If the child State's `UpState` is set to `AnyState`, it can be mounted to any `StateContainable` parent Store (the parent's `SubState` must also be `AnyState`, which is the default).
+
+### Debugging
+
+Use `po` in LLDB to inspect the full state tree of a Store:
+
+```swift
+// Print the current Store and all sub-stores (JSON format)
+po store.dumpState()
+```
+
+Example output:
+
+```json
+{
+  "name": "hello",
+  "subStates": {
+    "ChildState": {
+      "count": 42
+    }
+  }
+}
+```
+
+`po store` shows a property overview (via `CustomReflectable`).
+
 ## Author
 
 Raymond.huang: raymond0huang@gmail.com

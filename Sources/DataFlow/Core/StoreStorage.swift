@@ -133,7 +133,7 @@ extension Store {
     }
     
     /// 读取和写入传入含默认值 key 中定义的存储值
-    public nonisolated subscript<Value>(_ key: DefaultStoreStorageKey<Value>) -> Value? {
+    public nonisolated subscript<Value>(_ key: DefaultStoreStorageKey<Value>) -> Value {
         get {
             self.storage.get(key)
         }
@@ -153,7 +153,7 @@ extension Store {
     }
     
     /// 读取和写入传入含默认值 key 中定义的存储值
-    public nonisolated subscript<Value>(_ key: DefaultStateOnStoreStorageKey<Value, State>) -> Value? {
+    public nonisolated subscript<Value>(_ key: DefaultStateOnStoreStorageKey<Value, State>) -> Value {
         get {
             self.storage.get(key)
         }
@@ -174,13 +174,6 @@ extension Store {
         }
     }
     
-    /// 读取传入 Key 中定义的存储值，不存在时返回 Key 中定义的默认值
-    public nonisolated subscript<Value>(_ key: DefaultStoreStorageKey<Value>) -> Value {
-        get {
-            self.storage.get(key)
-        }
-    }
-    
     /// 读取传入 Key 中定义的存储值，不存在时返回默认值
     public nonisolated subscript<Value>(
         _ key: StateOnStoreStorageKey<Value, State>,
@@ -193,13 +186,6 @@ extension Store {
             let defaultValue = defaultValue()
             self.storage.set(key, to: defaultValue)
             return defaultValue
-        }
-    }
-    
-    /// 读取传入 Key 中定义的存储值，不存在时返回 Key 中定义的默认值
-    public nonisolated subscript<Value>(_ key: DefaultStateOnStoreStorageKey<Value, State>) -> Value {
-        get {
-            self.storage.get(key)
         }
     }
 }
