@@ -871,6 +871,41 @@ struct StoreTests {
     }
 
     @Test
+    func testMultipleSubStoresWithSameType() {
+        let upStore = Store<ContainState>.box(ContainState())
+
+        // 同类型两个不同实例，用不同 stateId 挂到同一 UpStore
+        let store1 = Store<MultiInstanceSubState>.box(MultiInstanceSubState())
+        let store2 = Store<MultiInstanceSubState>.box(MultiInstanceSubState())
+
+        upStore.addSubStore(store1, stateId: "instance1")
+        upStore.addSubStore(store2, stateId: "instance2")
+
+        // 用不同 stateId 分别获取
+        #expect(upStore.getSubStore(of: MultiInstanceSubState.self, stateId: "instance1") != nil)
+        #expect(upStore.getSubStore(of: MultiInstanceSubState.self, stateId: "instance2") != nil)
+
+        // 不传 stateId 用 defaultStateId，找不到（因为 add 时用的是自定义 stateId）
+        #expect(upStore.getSubStore(of: MultiInstanceSubState.self) == nil)
+    }
+
+    @Test
+    func testDefaultStateIdUsedWhenNoCustomStateId() {
+        let upStore = Store<ContainState>.box(ContainState())
+
+        // 不传 stateId，add 和 get 都走 defaultStateId
+        let subStore = Store<MultiInstanceSubState>.box(MultiInstanceSubState())
+        upStore.addSubStore(subStore)
+
+        // 不传 stateId，走 defaultStateId
+        #expect(upStore.getSubStore(of: MultiInstanceSubState.self) != nil)
+        #expect(upStore.getSubStore(of: MultiInstanceSubState.self)?.state.tag == "")
+
+        // 传与 defaultStateId 一致的 stateId 也能获取
+        #expect(upStore.getSubStore(of: MultiInstanceSubState.self, stateId: "MultiInstanceSubState") != nil)
+    }
+
+    @Test
     func testStrictMode() {
         StoreMonitor.shared.arrObservers = []
         StoreMonitor.shared.useStrictMode = true
@@ -1120,6 +1155,13 @@ struct ContainSubState : StorableState, AttachableState {
 
     var subValue : Int = 0
     var testValue : Int = 0
+}
+
+/// 自定义 defaultStateId 的 AttachableState，用于测试多实例场景
+struct MultiInstanceSubState : StorableState, AttachableState {
+    typealias UpState = ContainState
+    var tag: String = ""
+    static var defaultStateId: String { "MultiInstanceSubState" }
 }
 
 struct SpecificState : StorableState, ActionBindable {

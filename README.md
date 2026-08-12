@@ -32,7 +32,7 @@ DataFlow 是自定义 RSV(Resource & State & View) 设计模式中 State 层的�
   - `InitializableState`: 可直接无参数初始化的状态
   - `UseInitializableState`: 与 `InitializableState` 类似，额外提供对应 Store 的 init 方法
   - `StateContainable`: 可容纳子状态的标记协议（需 `Sendable`），约束 Store 可注册子 Store
-  - `AttachableState`: 可附加于其他状态的状态
+  - `AttachableState`: 可附加于其他状态的状态，提供 `defaultStateId`（默认为类型名）作为 subStore 的存储 key
   - `ReducerLoadableState`: 可自动加载处理器的状态
 
 - 扩展协议
@@ -198,12 +198,19 @@ struct ChildState: StorableState {
 let parentStore = Store<ParentState>.box(ParentState())
 let childStore = Store<ChildState>.box(ChildState())
 
-// 注册子 Store（要求 State: StateContainable）
+// 注册子 Store（要求 ParentState: StateContainable, ChildState: AttachableState）
 parentStore.addSubStore(childStore)
 
-// 获取子 Store
-let retrieved = parentStore.getSubStore() as Store<ChildState>?
+// 获取子 Store（不传 stateId 时使用 ChildState.defaultStateId）
+let retrieved = parentStore.getSubStore(of: ChildState.self)
+
+// 同类型多实例场景：用不同 stateId 挂到同一 parentStore
+let childStore2 = Store<ChildState>.box(ChildState())
+parentStore.addSubStore(childStore2, stateId: "child2")
+let retrieved2 = parentStore.getSubStore(of: ChildState.self, stateId: "child2")
 ```
+
+> **stateId 机制**：`addSubStore` 默认用 `subStore.stateId`（即 `defaultStateId`，默认为类型名）作为 key；`getSubStore` 默认用 `S.defaultStateId`。需要同类型多实例时，通过 `stateId` 参数指定不同 key。
 
 ### 调试
 

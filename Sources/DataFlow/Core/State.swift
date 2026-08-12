@@ -37,6 +37,14 @@ public protocol StateContainable: Sendable {}
 public protocol AttachableState: StorableState {
     /// 上一级状态
     associatedtype UpState : StateContainable
+    /// 默认 stateId，默认为实现类型名，可在 addSubStore/getSubStore 时作为 key 使用
+    static var defaultStateId: String { get }
+}
+
+extension AttachableState {
+    public static var defaultStateId: String {
+        String(describing: Self.self)
+    }
 }
 
 /// 可自动加载处理器的状态

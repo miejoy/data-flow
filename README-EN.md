@@ -31,7 +31,7 @@ State is actually a set of protocols:
   - StorableState: states that are storable. It is the most foundational one
   - InitializableState: states can be initialized directly
   - StateContainable: a marker protocol for states that can have sub-stores
-  - AttachableState: states that can be attached to other states
+  - AttachableState: states that can be attached to other states, provides `defaultStateId` (defaults to type name) as the storage key for subStores
   - ReducerLoadableState: states that can load reducer automatically
 
 - Extra Protocols

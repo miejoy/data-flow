@@ -568,24 +568,31 @@ extension StoreStorageKey where Value == [String: WeakStore] {
 
 extension Store where State: StateContainable {
     /// 添加子 Store 引用（weak 引用，subStore 生命周期由外部管理）
-    public func addSubStore<S: AttachableState>(_ subStore: Store<S>) where S.UpState == State {
+    /// - Parameters:
+    ///   - subStore: 子 Store
+    ///   - stateId: 存储 key，不传时使用 subStore.stateId（默认为 defaultStateId）
+    public func addSubStore<S: AttachableState>(_ subStore: Store<S>, stateId: String? = nil) where S.UpState == State {
         var stores = self[.subStores] ?? [:]
-        let stateId = subStore.stateId
-        if let existing = stores[stateId], existing.store != nil {
+        let key = stateId ?? subStore.stateId
+        if let existing = stores[key], existing.store != nil {
             StoreMonitor.shared.fatalError(
                 "Add SubStore[\(String(describing: S.self))] to UpState[\(String(describing: State.self))] " +
-                "with stateId[\(stateId)] failed: exists SubStore with same stateId!"
+                "with stateId[\(key)] failed: exists SubStore with same stateId!"
             )
             return
         }
-        stores[stateId] = WeakStore(subStore)
+        stores[key] = WeakStore(subStore)
         self[.subStores] = stores
     }
 
     /// 获取子 Store
-    public func getSubStore<S: AttachableState>(of type: S.Type) -> Store<S>? where S.UpState == State {
-        let stateId = String(describing: S.self)
-        guard let box = (self[.subStores] ?? [:])[stateId] else { return nil }
+    /// - Parameters:
+    ///   - type: 子 Store 的 State 类型
+    ///   - stateId: 存储 key，不传时使用 S.defaultStateId
+    /// - Returns: 对应的子 Store，不存在则返回 nil
+    public func getSubStore<S: AttachableState>(of type: S.Type, stateId: String? = nil) -> Store<S>? where S.UpState == State {
+        let key = stateId ?? S.defaultStateId
+        guard let box = (self[.subStores] ?? [:])[key] else { return nil }
         return box.store as? Store<S>
     }
 }
