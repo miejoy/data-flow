@@ -20,6 +20,8 @@ extension Never: SharableState {
     public typealias UpState = Never
 }
 
+extension AnyState: SharableState {}
+
 // MARK: - Extension Store
 
 /// 保存所有的共享状态，ObjectIdentifier 为 SharableState 类型的唯一值

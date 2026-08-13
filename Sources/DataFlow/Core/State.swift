@@ -100,3 +100,16 @@ extension Never : StorableState {
 }
 
 extension Never : StateContainable {}
+
+// MARK: - Extension AnyState
+
+/// 让 AnyState 可作为通配 UpState，支持 addSubStore/getSubStore 重载匹配
+extension AnyState : StorableState {
+    public init() { fatalError("AnyState can not init") }
+}
+
+extension AnyState : AttachableState {
+    public typealias UpState = AnyState
+}
+
+extension AnyState : SharableState {}
