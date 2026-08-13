@@ -216,7 +216,7 @@ let retrieved2 = parentStore.getSubStore(of: ChildState.self, stateId: "child2")
 
 > **stateId**: `addSubStore` uses `subStore.stateId` (defaults to `defaultStateId`, i.e. the type name) as the key; `getSubStore` uses `S.defaultStateId` when `stateId` is omitted. Sub-stores are automatically removed from the parent Store upon deallocation.
 
-> **Wildcard mounting**: If the child State's `UpState` is set to `AnyState`, it can be mounted to any `StateContainable` parent Store (the parent's `SubState` must also be `AnyState`, which is the default).
+> **Wildcard mounting**: If the child State's `UpState` is set to `AnyState`, it can be mounted to any `StateContainable` parent Store (the parent's `SubState` must also be `AnyState`, which is the default). `AnyState` is symmetric with `Never`, both have `UpState = Never`, representing the wildcard endpoint.
 
 ### Debugging
 

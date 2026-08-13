@@ -224,7 +224,7 @@ let retrieved2 = parentStore.getSubStore(of: ChildState.self, stateId: "child2")
 
 > **stateId 机制**：`addSubStore` 用 `subStore.stateId`（默认为 `defaultStateId`，即类型名）作为 key；`getSubStore` 不传 `stateId` 时用 `S.defaultStateId`。子 Store 销毁时自动从父 Store 移除，无需手动清理。
 
-> **通配挂载**：若子 State 的 `UpState` 设为 `AnyState`，则可挂载到任何 `StateContainable` 的父 Store（此时父 State 的 `SubState` 也需为 `AnyState`，即默认值）。
+> **通配挂载**：若子 State 的 `UpState` 设为 `AnyState`，则可挂载到任何 `StateContainable` 的父 Store（此时父 State 的 `SubState` 也需为 `AnyState`，即默认值）。`AnyState` 与 `Never` 对称，`UpState` 均为 `Never`，表示通配终点。
 
 ### 调试
 

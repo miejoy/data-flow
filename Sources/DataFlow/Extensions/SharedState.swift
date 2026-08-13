@@ -20,7 +20,9 @@ extension Never: SharableState {
     public typealias UpState = Never
 }
 
-extension AnyState: SharableState {}
+extension AnyState: SharableState {
+    public typealias UpState = Never
+}
 
 // MARK: - Extension Store
 

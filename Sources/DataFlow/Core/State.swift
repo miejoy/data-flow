@@ -8,6 +8,9 @@
 
 import Foundation
 
+/// 通配类型，与 Never 结构相同（无 case 不可实例化），用于 SubState/UpState 通配语义
+public enum AnyState {}
+
 /// 可存储状态协议
 public protocol StorableState: Sendable {
     /// 状态 ID，默认为结构体名称
@@ -36,9 +39,6 @@ public protocol StateContainable: Sendable {
     /// 设为具体类型则只接受该类型作为子 Store
     associatedtype SubState = AnyState
 }
-
-/// 通配类型，与 Never 结构相同（无 case 不可实例化），用于 SubState/UpState 通配语义
-public enum AnyState: StateContainable {}
 
 /// 可附加于其他状态的状态
 public protocol AttachableState: StorableState {
@@ -103,13 +103,9 @@ extension Never : StateContainable {}
 
 // MARK: - Extension AnyState
 
-/// 让 AnyState 可作为通配 UpState，支持 addSubStore/getSubStore 重载匹配
+/// 定义通配状态终点，与 Never 对称，用于 SubState/UpState 通配语义
 extension AnyState : StorableState {
     public init() { fatalError("AnyState can not init") }
 }
 
-extension AnyState : AttachableState {
-    public typealias UpState = AnyState
-}
-
-extension AnyState : SharableState {}
+extension AnyState : StateContainable {}
